@@ -251,8 +251,11 @@ One character of the shipped GLSL, in the tape shader: the PAL V switch
 `( ( l >> 1 ) & 1 )` → `( ( l >> 2 ) & 1 )` (the V axis inverted every other PAIR of
 field lines). Built in a scratch build directory and run through the checks at 320x180:
 `--pal` failed 2 of 4 (PAL hue 0.349 rad = the full 20° on some lines, saturation off
-cos 20° by 0.060); NTSC's two passed, as they should (NTSC has no V switch). Reverted
-(the line reads `l >> 1` again), rebuilt, `--pal` 4 of 4.
+cos 20° by 0.060); NTSC's two passed, as they should (NTSC has no V switch). The other
+seven checks (48 checks) passed, which is also right: every one of them runs with no phase
+error, where the V switch's sign has nothing to turn. Reverted with
+`git -C ~/dev/colourunder checkout -- source/Shaders.cpp` on a committed tree (clean
+before and after), rebuilt, `--pal` 4 of 4.
 
 ---
 
