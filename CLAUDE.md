@@ -93,7 +93,28 @@ tolerance.
 - Never loaded into Resolume. oxbow (a real FFGL host that is not Resolume) loads it.
 - No release, no website registration; `StoatworksAbout.h` and `ATTRIBUTIONS.md` are
   provisional hand copies (`guide=""`).
-- No OpenFX port, no browser demo, no user guide.
+- No OpenFX port, no user guide.
+
+## Browser demo
+
+`demo/` is the page at **colourunder-demo.stoatworks-labs.com**, deployed from
+`wrangler.toml` (a Worker route over a proxied `AAAA 100::` DNS record, not a custom
+domain) with `cf-run npx wrangler deploy` or by any push to main
+(`.github/workflows/deploy.yml`) — no build step; what is committed is what is served.
+`demo/vendor/` is copied in by
+`~/Projects/infrastructure/stoatworks-backend/resolume-demo/sync.sh colourunder` and is not a
+place to edit.
+- **A shader change in the plugin: `python3 demo/tools/sync_shaders.py`**, then
+  `python3 demo/tools/check_shaders.py --dump DIR` after `cutest --dump-shaders DIR`
+  (verify.sh does both). Never hand-edit the generated block.
+- **A change to Model.cpp, Controls.cpp, Clock.cpp, the constructor or ProcessOpenGL's CPU
+  half means the same change by hand in `demo/model.js`**, then `demo/tools/check_port.sh`
+  (verify.sh runs it): it compiles the plugin's own code under a recorder and compares
+  every declaration, LineData float and uniform with the port. A renamed marker it cuts
+  on (`enum ParamID`, the anonymous namespace, `Colourunder::Colourunder()`,
+  `ProcessOpenGL`, `DeInitGL`) breaks it loudly.
+- Verify a deploy **by content**:
+  `curl -s 'https://colourunder-demo.stoatworks-labs.com/?cb=1' | grep -o '<title>[^<]*'`.
 
 ## Diagnostics
 

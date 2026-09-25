@@ -132,7 +132,22 @@ Render cost, `cutest --bench` (best of three, `glFinish` both sides, a shared GP
 
 - **Never loaded into Resolume**, on either platform. No Windows build has been run.
 - Seen only on Resolume's bundled demo clips.
-- No OpenFX port, no browser demo, no user guide, no factory presets.
+- No OpenFX port, no user guide, no factory presets.
+
+## Browser demo
+
+[colourunder-demo.stoatworks-labs.com](https://colourunder-demo.stoatworks-labs.com/) runs
+the plugin's own intake, noise, tape, comb, compensator and display shaders in WebGL2,
+spliced in from `source/Shaders.cpp` by `demo/tools/sync_shaders.py` and checked by
+`demo/tools/check_shaders.py` from `tools/verify.sh` against what `cutest --dump-shaders`
+says the plugin compiles, over the same RGBA32F line raster. Its CPU half — the kernels,
+the tracking error and bar, the head switch, the dropouts, the phase error, the clock and
+every control's law — is a hand port to JavaScript (`demo/model.js`), and the page says so.
+`demo/tools/check_port.sh` (also run by verify) compiles the plugin's own constructor and
+`ProcessOpenGL` with GL replaced by a recorder and finds the port identical on every
+declaration, LineData float and uniform. Driven frame by frame against `cutest --pipe
+--fps 60` on the same input it agrees to 1/255 on every pixel. Generated clips only, or your
+own image or video, which never leaves the page.
 
 ## Build
 

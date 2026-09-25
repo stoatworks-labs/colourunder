@@ -259,6 +259,94 @@ before and after), rebuilt, `--pal` 4 of 4.
 
 ---
 
+## The browser demo
+
+`demo/` is the page at **colourunder-demo.stoatworks-labs.com** (2026-09-25), on the fleet's
+kit (`stoatworks-backend/resolume-demo`, vendored by its `sync.sh colourunder`; never edit
+`demo/vendor/`).
+
+**What is the plugin's.** The version line, `kCommon` and the eight GLSL bodies of
+`Shaders.cpp` are spliced into `demo/plugin.js` by `demo/tools/sync_shaders.py`, tabs and
+comments included; `assemble` and the list of stages that take `kCommon` are Shaders.cpp's.
+`demo/tools/check_shaders.py --dump DIR` compares every assembled stage with `cutest
+--dump-shaders DIR` byte for byte and checks the kCommon list against Shaders.cpp's stage
+functions; `tools/verify.sh` runs it. The kit's `port()` changes only the version line and
+the precision qualifiers. The buffers are the plugin's: columns, intake, noise and three
+work buffers RGBA32F, LineData an N × 6 RGBA32F texture, every read `texelFetch`; the page
+refuses to start without `EXT_color_buffer_float`.
+
+**What is a hand port: `demo/model.js`.** Model.cpp (the standards, `MakeRaster`, the band
+edges, `Gaussian`, `NoiseShape`, `UnitPower`, `DisplayGain`, `BoxGain`, the PCG `Hash` and
+`mix`/`low`, `Drift`, `RfAt`, `BarWeight`, `NoiseGain`, `SwitchLine`/`SwitchOffsetUs`,
+`Dropouts`, `PhaseError`, `BarJitter`), Controls.cpp, Clock.cpp with the unit declared, and
+the CPU half of `ProcessOpenGL` as `Instance.planFrame()`: the settings, the clock, the nine
+kernels, LineData, the dropouts in samples, `frameSeed`, and every pass with its target,
+its textures and every uniform. `DECLARATIONS` holds the constructor's parameters; the
+page's panel is built from it. plugin.js's GL half executes the plan and only a reader
+checks which WebGL object each name is.
+
+**`demo/tools/check_port.sh` checks the port against the C++, not a reader.** It cuts the
+`ParamID` enum out of Colourunder.h and the anonymous namespace, the whole constructor and
+the whole of `ProcessOpenGL` out of Colourunder.cpp at run time, pastes them unedited into
+`demo/tools/refport.cpp`'s scaffolding (GL entry points, `ffglex` classes and `PassBuffer`
+that RECORD every uniform by name, every texture per unit, every framebuffer drawn into and
+the LineData upload), compiles that with the plugin's own Model.cpp, Controls.cpp and
+Clock.cpp, and compares its record with `planFrame()`'s: 12 scenarios (defaults at 320x180
+and 960x540; NTSC SP with everything up at 1280x720; EP, 5 generations at 1920x1080; all
+off; 1025x577, 3840x2160, 64x36, 7x3; a backward clock, a 1.95 s gap and a stall; fractional
+options; 500 frames at 25 fps), 594 frames, 57 412 recorded lines, 8 347 937 floats, the
+declarations and the groups. **All identical** with `-ffp-contract=off`, and identical at
+`-O3 -arch x86_64` (run under Rosetta: the other slice's arithmetic). At `-O3` on arm64,
+clang's default contraction fuses a × b + c: 181 of 1 188 clock and tracking-error doubles
+then differ from the port in their last bit and no float the GPU is handed does — so the
+plugin's own two slices differ from each other the same way. Mutations of the port caught
+(scratch copies): the AFC's 12 lines to 12.5, the drift's 0.8 to 0.81, the dropouts'
+start and length hashes swapped, the phase error ignoring the field, Wear's default 0.31,
+the burst's length floored not rounded, `frameSeed`'s 977 to 976, the first generation's
+chroma not designed with the chain (k = 2 only), a clock jump of 1/50 s, Wear in the Deck
+group, a one-ulp change in `NoiseShape`, the tape's first two textures swapped. Not caught,
+and said: rounding half up instead of away from zero (no negative half arises in these
+scenarios). A one-character mutation of the tape shader in the page (`l >> 1` to `l >> 2`)
+fails check_shaders.py three ways. Not covered: a video frame above 2^32 (the clock starts
+at 0 and moves at most 0.5 s a frame), so the high halves of `low()` and `frameSeed()` are
+only ever 0.
+
+**One uniform is dead in the plugin too.** The noise shader declares `LineCount` and never
+reads it, so every GLSL compiler drops it; `glUniform1i` on its location (-1) is a no-op
+in the plugin as on the page. The page's "unmatched uniforms" line leaves that one out.
+
+**What differs, each said on the page:** the clock is the kit's in declared seconds (no
+unit vote; a paused page re-renders the same video frame, so the noise holds; Restart is
+a backward clock, which steps on 1/60 s; the kit caps a frame at 0.1 s, so the 0.5 s jump
+never happens); Generation is a dropdown (the kit has no integer control); the input is a
+generated clip at 640x360–1920x1080 or the visitor's own file; the test hooks are off and
+the About block is absent; the tape shader needs about 410 fragment uniform vectors (four
+96-float kernels and 24 dropouts) where WebGL2 promises 224 — ANGLE on Metal offers 1024,
+SwiftShader 4096; a browser with fewer gets the compile error and a sentence saying why.
+
+**Measured once (2026-09-25).** The page driven frame by frame at n / 60 from a fresh
+instance (`window.__colourunderDemo.hooks`: `fresh()`, and `afterRender` to read the canvas
+and the input inside the frame) against `cutest --pipe --fps 60` on the same input frames
+read back from the page, with the same values `--set`: the defaults on Colour bars and on
+the Synthetic scene; NTSC, SP, Tracking 0.6, Head Switch 1, Wear 1, Generation 3, DOC off,
+Chroma Delay 0, Chroma Noise 1, Mix 0.5 on the scene; EP, Tracking 0.25, Generation 5,
+Wear 0.8, Chroma Delay 1 on the Geometry card. At 320x180 over 60 frames through ANGLE on
+Metal (Apple M4 Max): 2, 15, 1 965 and 7 channel values of 13.8 million differ, each by 1.
+At 1280x720 (k = 2) over 12 frames: 5, 68, 6 531 and 52 of 44.2 million, each by 1. Through
+SwiftShader at 320x180 over 10 frames: 8, 2, 36 285 and 5 of 2.3 million, each by 1. It can
+fail: the page at the defaults against the pipe at Chroma Delay 0.46 (not 0.45) makes 1.6
+million values differ, up to 4/255, and against Tracking 0.031 (not 0.03), 185 000, up to
+114/255 (the bar's jitter). Paused, the same frame twice is identical; Generation 1 → 3
+moves the picture a mean 14.0 levels, Tracking 0.03 → 0.3 by 4.1, PAL → NTSC by 7.8.
+Driving trap: headless Chrome needs ANGLE on Metal (`--use-gl=angle --use-angle=metal
+--enable-gpu --ignore-gpu-blocklist`); cdpshot.py's default has no WebGL2.
+
+Deploy: `cf-run npx wrangler deploy` from the repo root, or push to main
+(`.github/workflows/deploy.yml`). The host is a Worker **route** over a proxied `AAAA 100::`
+record made through the API on 2026-09-25, not a custom domain: the zone is at Cloudflare's
+limit of 100. Delete that record and the page goes dark while deploys stay green. Verify by
+content: `curl -s 'https://colourunder-demo.stoatworks-labs.com/?cb=1' | grep -o '<title>[^<]*'`.
+
 ## Decisions taken without asking
 
 - **Defaults**, chosen on Resolume's demo clips through `--pipe` (Beat 001, Trinity_09,
@@ -324,7 +412,7 @@ before and after), rebuilt, `--pal` 4 of 4.
 - No pre-/de-emphasis nonlinearity (the white-clip streaking after sharp edges), no
   composite Y/C separation between generations (a dub over composite would add
   cross-colour), no azimuth crosstalk, no audio.
-- No OpenFX port, no browser demo, no user guide.
+- No OpenFX port, no user guide.
 
 ---
 
