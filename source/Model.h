@@ -192,7 +192,8 @@ struct Kernel
 
 /// The sampled Gaussian of `sigma` delayed by `delay`: output j reads input
 /// j + first + n with weight G( first + n + delay ), normalised to sum 1,
-/// truncated at 4 sigma. sigma <= 0 is the (possibly shifted) identity.
+/// truncated at no less than 4 sigma either side. sigma <= 0 is the
+/// (possibly shifted) identity.
 /// `centre` is a fractional offset of the output position (the intake's
 /// sample centres sit at ( k - 1 ) / 2 host pixels).
 Kernel Gaussian( double sigma, double delay, double centre = 0.0 );

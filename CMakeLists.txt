@@ -148,10 +148,11 @@ install(TARGETS Colourunder
 # ---------------------------------------------------------------------------
 # The harness: the real plugin class in a real GL context, with no host.
 #
-# macOS only, because it stands up a CGL context directly. The flicker, the
-# hold, the scratches, the weave, the fading and the resize are all measured
-# out of the plugin's own render, so this is where the projector is verified
-# rather than previewed. See tools/cutest. zlib ships with the OS, which is
+# macOS only, because it stands up a CGL context directly. The chroma band,
+# the group delay, the head switch, PAL against NTSC, the compensator, the
+# generations, the tracking bar and the resize are all measured out of the
+# plugin's own render, so this is where the deck is verified rather than
+# previewed. See tools/cutest. zlib ships with the OS, which is
 # why the PNG writer is fifty lines here rather than a vendored dependency.
 # ---------------------------------------------------------------------------
 if(COLOURUNDER_BUILD_TOOLS AND APPLE)

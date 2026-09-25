@@ -782,6 +782,22 @@ bool measuredHalf( Session& s, const Stated& st, int channel, int margin, double
 	return true;
 }
 
+/// How far a measured half-amplitude frequency may sit from the stated one,
+/// in MHz: twice the frequency error a relative gain error eps makes where a
+/// chain of Gaussians crosses 1/2 ( d ln H / df = -2 ln 2 / f there ). eps is
+/// 3 T per Gaussian in the chain, T = erfc( 4 / sqrt 2 ) = 6.3e-5 the two
+/// tails a kernel truncated at 4 sigma drops (normalised to unit DC, the
+/// response at H = 1/2 moves by at most ( T + T / 2 ) / ( 1/2 ) = 3 T); at
+/// k > 1 another 1e-3 for the display's Catmull-Rom images leaking into the
+/// fit (image at most 0.1 of the fundamental, a least-squares window of 30+
+/// periods lets through at most 1e-2 of it); and 1e-5 for float arithmetic.
+double halfTolerance( double fHalfMHz, int gaussians, int k )
+{
+	const double tail = std::erfc( 4.0 / std::sqrt( 2.0 ) );
+	const double eps  = 3.0 * tail * gaussians + ( k > 1 ? 1e-3 : 0.0 ) + 1e-5;
+	return 2.0 * eps * fHalfMHz / ( 2.0 * std::log( 2.0 ) );
+}
+
 /// Lines of horizontal resolution per picture height for a frequency: two
 /// lines a cycle over the active line, times the 3 : 4 aspect.
 double tvLines( double fMHz, const Stated& st )
@@ -817,12 +833,12 @@ int runChroma( int W, int H, int perturb, bool quiet = false )
 			//The chain -- the intake's box and the display's reconstruction
 			//included -- is stated to be half at 0.5 MHz at every raster.
 			const double predicted = kChromaHalfMHz;
-			const double tol       = k == 1 ? 2e-4 : 5e-4;
+			const double tol       = halfTolerance( predicted, 1, k );
 			if( !found )
 				failures += report( false, quiet, "%s chroma: no half-amplitude crossing between 0.05 and %.2f MHz", st.name, hi );
 			else
 				failures += report( std::fabs( half - predicted ) <= tol, quiet,
-				                    "%s chroma half amplitude at %.5f MHz = %.1f lines (stated %.1f MHz = %.1f lines, tol %.0e MHz)",
+				                    "%s chroma half amplitude at %.5f MHz = %.1f lines (stated %.1f MHz = %.1f lines, tol %.1e MHz)",
 				                    st.name, half, tvLines( half, st ), predicted, tvLines( kChromaHalfMHz, st ), tol );
 			s.end();
 		}
@@ -845,11 +861,11 @@ int runChroma( int W, int H, int perturb, bool quiet = false )
 				const double hi  = 0.95 * nyq;
 				const bool found = measuredHalf( s, st, 0, margin, 0.5, hi, frame, half );
 				const double predicted = kLumaHalfMHz[ speed ];
-				const double tol       = k == 1 ? 2e-4 : 2e-3;
+				const double tol       = halfTolerance( predicted, 1, k );
 				if( !found )
 					failures += report( false, quiet, "%s luma %s: no half-amplitude crossing below %.2f MHz", st.name, controls::SpeedName( speed ), hi );
 				else
-					failures += report( std::fabs( half - predicted ) <= tol, quiet, "%s luma %s half amplitude at %.4f MHz = %.0f lines (stated %.2f MHz, tol %.0e MHz)", st.name,
+					failures += report( std::fabs( half - predicted ) <= tol, quiet, "%s luma %s half amplitude at %.4f MHz = %.0f lines (stated %.2f MHz, tol %.1e MHz)", st.name,
 					                    controls::SpeedName( speed ), half, tvLines( half, st ), predicted, tol );
 			}
 			else
@@ -1231,9 +1247,10 @@ int runGeneration( int W, int H, int perturb, bool quiet = false )
 		for( int i = 0; i < 5; ++i )
 			worst = std::max( worst, std::fabs( gains[ 1 ][ i ] / gains[ 0 ][ i ] - gaussianGain( probes[ i ], kChromaHalfMHz ) ) );
 		failures += report( worst <= 5e-4, quiet, "%s: generation 2 over generation 1 is the tape's 0.5 MHz Gaussian at 0.15-0.6 MHz (worst %.1e, tol 5e-4)", st.name, worst );
-		failures += report( found && ( k > 1 || std::fabs( halves[ 1 ] - kChromaHalfMHz / std::sqrt( 2.0 ) ) <= 2e-4 ), quiet,
-		                    "%s: two generations' chroma half amplitude %.5f MHz = %.1f lines, one's %.5f%s", st.name, halves[ 1 ], tvLines( halves[ 1 ], st ), halves[ 0 ],
-		                    k == 1 ? " (0.5 / sqrt 2 = 0.35355, tol 2e-4)" : " (at k > 1 the first generation's own Gaussian is narrower: not sqrt 2)" );
+		const double tol2 = halfTolerance( kChromaHalfMHz / std::sqrt( 2.0 ), 2, k );
+		failures += report( found && ( k > 1 || std::fabs( halves[ 1 ] - kChromaHalfMHz / std::sqrt( 2.0 ) ) <= tol2 ), quiet,
+		                    "%s: two generations' chroma half amplitude %.5f MHz = %.1f lines, one's %.5f%s (tol %.1e)", st.name, halves[ 1 ], tvLines( halves[ 1 ], st ), halves[ 0 ],
+		                    k == 1 ? " (0.5 / sqrt 2 = 0.35355)" : " (at k > 1 the first generation's own Gaussian is narrower: not sqrt 2, not asserted)", tol2 );
 		failures += report( std::fabs( lag - 2.0 * 0.45 / usPP ) <= 1e-2, quiet, "%s: two generations lag the chroma %.4f px, twice one playback's %.4f", st.name, lag, 0.45 / usPP );
 	}
 	return failures;

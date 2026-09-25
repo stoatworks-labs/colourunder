@@ -181,9 +181,12 @@ Kernel Gaussian( double sigma, double delay, double centre )
 		k.weights[ 0 ] = 1.0f;
 		return k;
 	}
+	//At least 4 sigma each side of the centre. floor( 4 sigma ) is not: at
+	//sigma 1.24 it is 3.2 sigma, and a 1.3e-3 tail moved NTSC LP's luma band
+	//edge 3e-4 MHz (cutest --chroma at 960x540 found it).
 	const double reach = 4.0 * sigma;
-	int lo             = static_cast< int >( std::ceil( -shift - reach ) );
-	int hi             = static_cast< int >( std::floor( -shift + reach ) );
+	int lo             = static_cast< int >( std::floor( -shift - reach ) );
+	int hi             = static_cast< int >( std::ceil( -shift + reach ) );
 	if( hi - lo + 1 > kMaxTaps )
 	{
 		const int excess = hi - lo + 1 - kMaxTaps;
