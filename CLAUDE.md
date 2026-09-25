@@ -87,13 +87,13 @@ tolerance.
   a file-scope constructor nothing references by name.
 - macOS build must be universal. Verify with `lipo`, never the build log.
 - FFGL id is `CU01`. Display name `SW Colourunder`.
-- Local only (v0.1.0, unreleased): no GitHub repo, no tag, not on the website.
+- Released v0.1.0 (2026-09-25): public repo, on the website, user guide, video
+  `nwt7SoegUVM`. `StoatworksAbout.h` and `ATTRIBUTIONS.md` are GENERATED
+  (stoatworks-backend `sync-about.py` / `sync-attributions.py`): do not hand-edit them.
 
 ## Not done yet
-- Never loaded into Resolume. oxbow (a real FFGL host that is not Resolume) loads it.
-- No release, no website registration; `StoatworksAbout.h` and `ATTRIBUTIONS.md` are
-  provisional hand copies (`guide=""`).
-- No OpenFX port, no user guide.
+- Never loaded into Resolume on macOS. On Windows the fleet Arena gate passed 9/9 (llvmpipe).
+- No OpenFX port, no presets.
 
 ## Browser demo
 

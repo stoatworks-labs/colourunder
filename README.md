@@ -26,6 +26,18 @@ VHS's helical-scan colour-under recording, as an FFGL effect for
 Resolume. Resolume's bundled demo clip IntoTheGlow_02 at the defaults, with Tracking up to
 0.12 so the bar has left the vertical interval.</sub>
 
+<!-- downloads:start -->
+<!-- downloads:end -->
+
+## Video
+
+[![Colourunder: VHS colour-under recording, for Resolume](docs/video-thumb.png)](https://www.youtube.com/watch?v=nwt7SoegUVM)
+
+Rendered through `cutest --pipe` over Resolume's demo clips (and ffmpeg's generated colour
+bars for the PAL/NTSC beat), not captured from Resolume. The head-switch beat is the
+bottom-left corner four times up: the torn lines are the last four of each field, under 1%
+of the picture's height.
+
 ## The one idea
 
 A VHS deck cannot record colour at its broadcast frequency. It heterodynes the chroma
@@ -59,6 +71,16 @@ None of these is drawn as an effect. Each is the recorder doing what it does:
 - **Copies of copies.** A dub runs the whole chain again: colour at 0.35 MHz after two
   generations, twice the delay, the noise and the dropouts of both tapes.
 
+### How it differs from Ferric and Old Cathode
+
+[Ferric](https://github.com/stoatworks-labs/ferric) is the tape transport (wow, flutter and
+scrape as one timing error) and a noise-reduction round trip; Colourunder has neither.
+[Old Cathode](https://github.com/stoatworks-labs/old-cathode) is the broadcast composite route
+to a CRT (a subcarrier, dot crawl, cross-colour, the tube); Colourunder never makes a
+composite, so there is no dot crawl and no cross-colour, and its head switch and tracking bar
+come from the recorder's own geometry (a stated line before V sync; the crossing between two
+tracks) rather than a band placed on the frame. AGENTS.md has the detail.
+
 ### The honest limit
 
 The chroma path is the colour-under band's baseband equivalent — a Gaussian band edge and
@@ -84,7 +106,9 @@ Mix 1: a tape has no alpha.
 
 ## Status
 
-**v0.1.0, not released (2026-09-25).** No user guide, no project page yet.
+**v0.1.0, released 25 September 2026, and honestly early.** There is a
+[user guide](https://stoatworks-labs.com/software/colourunder/guide/)
+([PDF](docs/USER-GUIDE.pdf)) and a [project page](https://stoatworks-labs.com/software/colourunder/).
 
 ### Measured offline, on macOS
 
@@ -128,11 +152,31 @@ Render cost, `cutest --bench` (best of three, `glFinish` both sides, a shared GP
 4K costs little more than 1080p because the signal chain runs on a line raster of at most
 1024 samples by 576 lines, whatever the host's size.
 
+### In Resolume on Windows
+
+A build of this source (release.yml on c30a11b) loads, registers and renders in Resolume
+Arena 7.27.1 on win-lab (software rendering, Mesa llvmpipe, no GPU): the fleet's Arena gate
+passed 9 of 9, with all 16 host controls matching what the plugin declares. Opacity, Mix,
+Generation and Chroma Delay read as moving the picture; Standard, Speed, Tracking, Head
+Switch, Wear, DOC and Chroma Noise inconclusive, because the tape noise and dropouts refresh
+every video frame and set the gate's noise floor (5.3 levels). The harness sweep shows all
+10 change the picture. Software rendering says nothing about a GPU or about speed.
+
+### What filming found
+
+- The tracking bar moves less than the control suggests: at Tracking 0.3 it is still in the
+  bottom tenth of the picture most of the time; near 1 it reaches the upper half, wandering
+  up and down with the drift.
+- The head-switch tear is the last four lines of each field, about 7 px of 1080, so at full
+  frame it is a thin strip; the video shows it four times up.
+- A hue error can only be seen on flat colour, so the PAL/NTSC beat uses ffmpeg's generated
+  SMPTE bars: PAL steady, NTSC in hue bands down the picture at Chroma Noise 1.
+
 ### Not done
 
-- **Never loaded into Resolume**, on either platform. No Windows build has been run.
-- Seen only on Resolume's bundled demo clips.
-- No OpenFX port, no user guide, no factory presets.
+- **Never loaded into Resolume on macOS.** On Windows, see above.
+- Seen only on Resolume's bundled demo clips and generated bars, never on camera footage.
+- No OpenFX port, no factory presets.
 
 ## Browser demo
 

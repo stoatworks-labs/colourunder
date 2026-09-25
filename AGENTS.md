@@ -404,17 +404,38 @@ content: `curl -s 'https://colourunder-demo.stoatworks-labs.com/?cb=1' | grep -o
 
 ### Assumed, or not done
 
-- ☠️ **Never loaded into Resolume.** Everything was measured offline against the real
-  plugin class in a headless CGL context, and loaded by oxbow, which is a real FFGL host and
-  is not Resolume. No Arena gate, no Windows build run.
+- ☠️ **Never loaded into Resolume on macOS.** Everything there was measured offline against
+  the real plugin class in a headless CGL context, and loaded by oxbow, which is a real FFGL
+  host and is not Resolume. On Windows the fleet Arena gate passed 9/9 (see Release, below).
 - The format figures marked unconfirmed above; every noise level and the tracking geometry
   are chosen.
 - No pre-/de-emphasis nonlinearity (the white-clip streaking after sharp edges), no
   composite Y/C separation between generations (a dub over composite would add
   cross-colour), no azimuth crosstalk, no audio.
-- No OpenFX port, no user guide.
+- No OpenFX port.
 
 ---
+
+## Release (v0.1.0, 2026-09-25)
+
+Public at `github.com/stoatworks-labs/colourunder`; registered in the website's
+projects.json, sync-about and the attributions tables, so `StoatworksAbout.h` and
+`ATTRIBUTIONS.md` are generated now (the About block gained the User guide button: one more
+parameter, verify re-run green). Video YouTube `nwt7SoegUVM`, rendered by
+`stoatworks-backend/video/projects/colourunder/render.py` through `cutest --pipe`.
+
+- **Arena gate (win-lab, Arena 7.27.1, llvmpipe), 9/9**: 16 controls match; Opacity, Mix,
+  Generation, Chroma Delay live; the other seven inconclusive. The tape noise and dropouts
+  refresh every video frame, so the picture never stands still and the floor (5.3 levels
+  single, 2.2 averaged) covers them: copperlist's and fax's class, not dead controls.
+  Expectation: `plugin-bench/arena/expect/colourunder.json` (Generation probes 1 and 3).
+- **Windows compiled first time** on CI (vcpkg.json present, `kPi`, `<cmath>`, no
+  `__builtin_*`; the harness's `__attribute__` is Apple-only and never reaches MSVC).
+- **Filming facts** (now in the guide and README): the bar is still in the bottom tenth at
+  Tracking 0.3 and reaches the upper half only near 1; the head-switch tear is ~7 px of 1080
+  and needs a 4x crop to be seen; a hue error needs flat colour (the video uses ffmpeg's
+  generated SMPTE bars for the PAL/NTSC beat); Galactucity_21's orange dancers on black show
+  the ~40-line chroma and its delay best (grey luma edges on the left, colour bleeding right).
 
 ## Open questions
 
