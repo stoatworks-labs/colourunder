@@ -1,11 +1,10 @@
 # Attributions
 
-Colourunder is built on other people's work. This file lists what that work is,
-who did it, and what it is doing here.
+Colourunder is built on other people's work. This file lists what that work is, who did
+it, and what it is doing here.
 
-PROVISIONAL: a hand copy in the shape `stoatworks-backend`'s
-`scripts/sync-attributions.py` generates. Colourunder is not yet registered there;
-once it is, the sync overwrites this file.
+It is generated — the master lists live in the `stoatworks-backend` repo and are
+pushed out by `scripts/sync-attributions.py`. Edit it there, not here.
 
 ## Code we derived from other people's work
 
@@ -19,21 +18,13 @@ Copyright: Stoatworks Labs
 
 The plugin's shape (the OBJECT core, the About block, the Diag logger), the harness shape, the --pipe contract with SIGPIPE ignored and cues that step for options, booleans, integers and events, the software-renderer pass, the verify script, the sweep and the negative-control pattern are gate's, which had them from filament, toner and wetplate, and they from rebate and pitch.
 
-### The clock — Stoatworks clamp and standards
+### The clock and the two raster timings — Stoatworks clamp and standards
 
 <https://github.com/stoatworks-labs/clamp>  
 Licence: MIT  
 Copyright: Stoatworks Labs
 
-`Clock.{h,cpp}` is clamp's (standards' before it): the host clock-unit voting (readout's), an origin and an offset in double, no per-frame clamp.
-
-### The two raster timings — Stoatworks clamp
-
-<https://github.com/stoatworks-labs/clamp>  
-Licence: MIT  
-Copyright: Stoatworks Labs
-
-The 625/50 and 525/59.94 line, porch, sync and active-line figures, and their sources, are clamp's `Model.cpp` table.
+Clock.{h,cpp} is clamp's (standards' before it): the host clock-unit voting (readout's), an origin and an offset in double. The 625/50 and 525/59.94 line, porch, sync and active-line figures, and their sources, are clamp's Model.cpp table.
 
 ### PassBuffer — Stoatworks tinsel
 
@@ -61,7 +52,7 @@ Libraries, SDKs and frameworks the project is built on or bundles.
 Licence: BSD-3-Clause  
 Copyright: FreeFrame
 
-Vendored as a git submodule at external/ffgl, pinned to b1afaf9 like the fleet.
+Vendored as a git submodule at external/ffgl (third_party/ffgl in oxbow).
 
 The plugin ABI itself. An FFGL effect or source is defined by this SDK's headers — there is no other way to be loadable by Resolume Arena and Avenue.
 
@@ -87,39 +78,35 @@ Part of the upstream SDK tree rather than something these plugins call directly 
 
 ## Work we checked ourselves against
 
-No code was taken from these — but they were how we knew we had it right, and that is worth saying out loud. Each figure is marked **confirmed** (two or more independent sources agree) or **unconfirmed** (one source, or none: a decision recorded in AGENTS.md).
+No code was taken from these — but they were how we knew we had it right, and that is worth saying out loud.
 
-### The colour-under carriers — vhs-decode (oyvindln/vhs-decode, `vhsdecode/format_defs/vhs.py`, citing IEC 774-1); "How vhs-decode actually works", digital-archivist.com; US patent 5,500,739
+### The colour-under carriers — vhs-decode (oyvindln/vhs-decode, vhsdecode/format_defs/vhs.py, citing IEC 774-1); "How vhs-decode actually works", digital-archivist.com; US patent 5,500,739
 
-PAL: 40 fH + 1953 Hz = 40.125 fH = **626.953 kHz**; NTSC: 40 fH = **629.371 kHz**. vhs-decode states both as fH multiples and cites IEC 774-1; the digital-archivist article gives "627 kHz" and "around 629 kHz"; the patent gives a nominal 629 kHz. **Confirmed** (three sources; the IEC standard itself was not read). In this model the carrier sets nothing directly: a baseband-equivalent chroma path needs only the bandwidth. `cutest --model` holds the carrier numbers and the fact that the 0.5 MHz band fits under them.
+<https://github.com/oyvindln/vhs-decode>
+
+PAL 40.125 fH = 626.953 kHz, NTSC 40 fH = 629.371 kHz. Confirmed by three sources; the IEC standard itself was not read. In this model the carrier sets nothing directly: the chroma path is the band's baseband equivalent and needs only the bandwidth.
 
 ### The chroma bandwidth — US patent 5,500,739; Wikipedia, "VHS"
 
-The patent: AM colour sidebands extending "approximately 500 kHz on both sides" of the 629 kHz carrier. Wikipedia: "300 kHz of baseband chroma bandwidth". The spec's "about 500 kHz … roughly 40 lines" matches the patent. **Unconfirmed**, and the sources disagree: the plugin puts chroma's half-amplitude point at **0.5 MHz** (39.0 lines PAL, 39.5 NTSC), reading the patent's sideband extent as the half-amplitude edge. 300 kHz would be 23 lines.
+The patent gives colour sidebands of about 500 kHz either side of the carrier; Wikipedia gives 300 kHz of baseband chroma. Unconfirmed, and the sources disagree: the plugin puts chroma's half-amplitude point at 0.5 MHz (39 lines), reading the patent's sideband extent as the half-amplitude edge. 0.3 MHz would be 23 lines.
 
-### Luma bandwidth by speed — Wikipedia, "VHS"
+### Luma bandwidth by speed — Wikipedia, "VHS" (current and an earlier revision)
 
-"VHS machines record up to 3 MHz of baseband video bandwidth" and 240 TVL; an earlier revision of the same article gives 250 lines at SP and 230 at LP, "and even less in EP/SLP". SP **3.0 MHz: confirmed** (the 3 MHz and 240-line figures agree: 3 MHz over 51.95 us is 234 lines). LP **2.76 MHz** (3.0 x 230/250): **unconfirmed**, one source. EP **2.4 MHz**: **unconfirmed**, no source gives a number; chosen below LP.
-
-### The FM luma carrier — digital-archivist.com; Wikipedia, "S-VHS"
-
-Sync tip to peak white 3.8-4.8 MHz (PAL), 3.4-4.4 MHz (NTSC). Informational: the FM channel is modelled only through its output (bandwidth and noise), not as a carrier.
+SP 3.0 MHz, confirmed (3 MHz and 240 TVL agree). LP 2.76 MHz from one revision's 230 and 250 lines: unconfirmed, one source. EP 2.4 MHz: no source gives a number; chosen below LP.
 
 ### The head-switching point — US patents 5,675,698, 6,304,399, 6,650,825 and 6,021,014
 
-"In a VHS system, the head switching point … leads a vertical sync signal by 6.5±1.5H", "5H through 8H centred at 6.5H". **Confirmed** (four patents; the IEC 774 text itself was not read). Where 6.5 H before V sync falls in the active picture is derived here from BT.470-6 / SMPTE 170M line numbering (2.5 and 3 lines of pre-equalising): 4.0 lines before the end of each field's active picture on PAL, 3.5 on NTSC.
+The head switch leads vertical sync by 6.5 +/- 1.5 H. Confirmed by four patents quoting the VHS standard. Where that falls in the active picture (4.0 lines before a PAL field's active end, 3.5 on NTSC) is derived from BT.470-6 and SMPTE 170M line numbering.
 
 ### The de-emphasis corner — vhs-decode, citing IEC 774-1 (1994) p. 67
 
-`deemph_mid = 273755.82` Hz. Used only to shape the FM noise (cut below it). **Unconfirmed** beyond vhs-decode.
+<https://github.com/oyvindln/vhs-decode>
+
+273.76 kHz, used only to shape the FM luma noise. Unconfirmed beyond vhs-decode.
 
 ### The chroma crosstalk canceller — US patents 4,698,694 and 5,845,040
 
-The 90-degree-per-line phase rotation on alternate tracks and the 1H comb that cancels adjacent-track crosstalk on playback. That comb is why this plugin averages chroma over 1H on NTSC as well as PAL.
-
-### The 625/50 and 525/59.94 timing — ITU-R BT.470-6 and BT.1700; SMPTE 170M (through clamp)
-
-Line periods, porches, sync, active lines, field lines and the pre-equalising intervals.
+The 90-degree-per-line phase rotation on alternate tracks and the 1H comb that cancels adjacent-track crosstalk on playback, which is why the plugin averages chroma over 1H on NTSC as well as PAL.
 
 ## Inspirations
 
@@ -127,15 +114,16 @@ What this set out to be. No code, assets or binaries from any of these were used
 
 ### The VHS format (JVC, 1976)
 
-The helical scan, the two heads, the colour-under chroma and the look of every home video recorded on it.
+The helical scan, the two heads, the colour-under chroma and the look of every home video recorded on it. Built from what the format is rather than from anyone's implementation: no code, assets or binaries from any product were used or examined.
 
 ## Standards and published specifications
 
 What the implementation is measured against.
 
-- **ITU-R BT.470-6, BT.1700; SMPTE 170M** — the two rasters.
-- **ITU-R BT.601** — the Y' weights, and the U and V scalings PAL and NTSC use.
+- **ITU-R BT.470-6, BT.1700; SMPTE 170M** — the 625/50 and 525/59.94 rasters, their line numbering and pre-equalising intervals.
+- **ITU-R BT.601** — the Y' weights, and the U and V scalings used for both standards.
 - **IEC 774-1 (VHS)** — through vhs-decode and the patents above; not read directly.
+- **PCG (M. E. O'Neill, Harvey Mudd College, 2014)** — the pcg_hash output mix used for the noise, the dropouts and the tracking drift, written out rather than copied from anyone's source.
 
 ## Getting this wrong
 
