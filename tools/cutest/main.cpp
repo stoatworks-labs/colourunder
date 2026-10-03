@@ -29,6 +29,9 @@
 		                                puts it, widens as the error grows, walks as
 		                                it drifts, and is the same at any frame rate
 		cutest --resize                 the state survives a resize
+		cutest --cpu                    the OpenFX build's CPU passes give the
+		                                GPU's picture, per pixel, on the moving
+		                                card at four settings, noise on
 		cutest --negative               every check above can FAIL
 		cutest --names --model          the checks that need no GL
 		cutest --bench                  the render cost
@@ -42,6 +45,8 @@
 
 #include "Colourunder.h"
 #include "Controls.h"
+#include "CpuPasses.h"
+#include "Frame.h"
 #include "Model.h"
 #include "Shaders.h"
 
@@ -64,6 +69,7 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <unistd.h>
 #include <utility>
 #include <vector>
@@ -1605,6 +1611,193 @@ std::vector< unsigned char > buildCard( int width, int height, int64_t frame )
 }
 
 //---------------------------------------------------------------------------
+// --cpu: the OpenFX build's render against the plugin's own.
+//
+// The OpenFX plugin runs frame::Make -- the same plan ProcessOpenGL uploads --
+// and then cpu::Render, CpuPasses.cpp's mirror of the seven fragment shaders.
+// Here both run on the same frames of the moving card, noise on: the plugin
+// through the real GL passes, and cpu::Render on the plan made at the very
+// seconds the plugin's clock read. Two settings that MUST differ (Chroma
+// Delay 0.45 against 0.46) are the control that this comparison can fail.
+//---------------------------------------------------------------------------
+
+/// What a host's thread pool does with a ParallelFor: contiguous ranges on
+/// real threads. The CPU passes must give the same bits however the lines
+/// are split, because every line is computed from the previous pass alone.
+void threadedFor( int count, const std::function< void( int, int ) >& body )
+{
+	const int workers = static_cast< int >( std::max( 1u, std::min( 8u, std::thread::hardware_concurrency() ) ) );
+	std::vector< std::thread > pool;
+	for( int i = 0; i < workers; ++i )
+	{
+		const int first = static_cast< int >( static_cast< int64_t >( count ) * i / workers );
+		const int last  = static_cast< int >( static_cast< int64_t >( count ) * ( i + 1 ) / workers );
+		if( first < last )
+			pool.emplace_back( [ =, &body ] { body( first, last ); } );
+	}
+	for( std::thread& t : pool )
+		t.join();
+}
+
+/// The plugin's ten controls as frame::Values -- what the OpenFX build hands
+/// frame::Make from its own parameters.
+colourunder::frame::Values valuesOf( Colourunder& p )
+{
+	colourunder::frame::Values v;
+	v.standard    = p.GetFloatParameter( Colourunder::PT_STANDARD );
+	v.speed       = p.GetFloatParameter( Colourunder::PT_SPEED );
+	v.tracking    = p.GetFloatParameter( Colourunder::PT_TRACKING );
+	v.headSwitch  = p.GetFloatParameter( Colourunder::PT_HEAD_SWITCH );
+	v.wear        = p.GetFloatParameter( Colourunder::PT_WEAR );
+	v.generation  = p.GetFloatParameter( Colourunder::PT_GENERATION );
+	v.doc         = p.GetFloatParameter( Colourunder::PT_DOC );
+	v.chromaDelay = p.GetFloatParameter( Colourunder::PT_CHROMA_DELAY );
+	v.chromaNoise = p.GetFloatParameter( Colourunder::PT_CHROMA_NOISE );
+	v.mix         = p.GetFloatParameter( Colourunder::PT_MIX );
+	return v;
+}
+
+/// The card as the GPU's source texture holds it: unsigned bytes / 255, row 0
+/// at the bottom.
+std::vector< float > bottomFirst( const std::vector< unsigned char >& card, int W, int H )
+{
+	std::vector< float > p( card.size() );
+	for( int y = 0; y < H; ++y )
+		for( size_t i = 0; i < static_cast< size_t >( W ) * 4; ++i )
+			p[ static_cast< size_t >( y ) * W * 4 + i ] = static_cast< float >( card[ static_cast< size_t >( H - 1 - y ) * W * 4 + i ] ) / 255.0f;
+	return p;
+}
+
+struct Agreement
+{
+	double worst     = 0.0;///< the largest |difference| of any float channel
+	double worst8    = 0.0;///< the same in 8-bit levels, after each side is rounded
+	size_t differ8   = 0;  ///< 8-bit channel values that differ
+	size_t values    = 0;
+};
+
+/// GPU top-first against CPU bottom-first, accumulated.
+void compareFrame( const std::vector< float >& gpu, const std::vector< float >& cpu, int W, int H, Agreement& a )
+{
+	for( int r = 0; r < H; ++r )
+		for( size_t i = 0; i < static_cast< size_t >( W ) * 4; ++i )
+		{
+			const float g = gpu[ static_cast< size_t >( r ) * W * 4 + i ];
+			const float c = cpu[ static_cast< size_t >( H - 1 - r ) * W * 4 + i ];
+			a.worst       = std::max( a.worst, static_cast< double >( std::fabs( g - c ) ) );
+			const long g8 = std::lround( std::clamp( g, 0.0f, 1.0f ) * 255.0f );
+			const long c8 = std::lround( std::clamp( c, 0.0f, 1.0f ) * 255.0f );
+			a.worst8      = std::max( a.worst8, static_cast< double >( std::labs( g8 - c8 ) ) );
+			a.differ8 += g8 != c8;
+			++a.values;
+		}
+}
+
+int runCpu( int W, int H, bool quiet = false )
+{
+	if( !quiet )
+		std::printf( "cpu: the OpenFX build's CPU passes against the GPU's, %dx%d, the moving card, noise on\n", W, H );
+	struct Case
+	{
+		const char* name;
+		std::vector< std::pair< const char*, float > > set;
+	};
+	const Case cases[] = {
+		{ "defaults (PAL LP, Tracking 0.03, Head Switch 0.45, Wear 0.3, DOC)", {} },
+		{ "NTSC SP, Tracking 0.6, Head Switch 1, Wear 1, Generation 3, DOC off, Chroma Delay 0, Chroma Noise 1, Mix 0.5",
+		  { { "Standard", 1.0f }, { "Speed", 0.0f }, { "Tracking", 0.6f }, { "Head Switch", 1.0f }, { "Wear", 1.0f },
+		    { "Generation", 3.0f }, { "DOC", 0.0f }, { "Chroma Delay", 0.0f }, { "Chroma Noise", 1.0f }, { "Mix", 0.5f } } },
+		{ "EP, Tracking 1, Generation 5, Wear 0.8, Chroma Delay 1",
+		  { { "Speed", 2.0f }, { "Tracking", 1.0f }, { "Generation", 5.0f }, { "Wear", 0.8f }, { "Chroma Delay", 1.0f } } },
+		{ "PAL SP, Tracking 0.15, Wear 1, Generation 2, DOC on, Chroma Noise 0.8",
+		  { { "Speed", 0.0f }, { "Tracking", 0.15f }, { "Wear", 1.0f }, { "Generation", 2.0f }, { "Chroma Noise", 0.8f } } },
+	};
+	//Frames 0, 1, 7, 24, 61: the clock at n / 60 s moves the video frame
+	//(25 a second) and the tracking drift, and 61 is past a drift knot.
+	const long frames[] = { 0, 1, 7, 24, 61 };
+
+	//The two renders do the same float operations on the same numbers in the
+	//same order, except where a compiler is free to choose: a fused
+	//multiply-add (the GPU's, and clang's on arm64) against two roundings, a
+	//division against a reciprocal. Each is half an ulp of a value of order
+	//1 per operation, ~2^-24; the deepest chain is a 96-tap convolution per
+	//generation over 5 generations, ~500 operations, so 500 x 2^-24 = 3e-5
+	//bounds the float difference. In 8-bit levels that is a value lying
+	//within 3e-5 of a rounding boundary changing by one level, so at most 1
+	//level, and rarely: a fraction 2 x 3e-5 x 255 = 1.5% of values at worst.
+	//The one discontinuity a last-bit difference can cross is a comparison
+	//against a computed float (the display's `s >= from`, a dropout's
+	//`x >= first sample`), where both sides compare the same uploaded floats
+	//with an integer or the same computed s: not reached by a rounding.
+	constexpr double kFloatTolerance = 3e-5;
+	constexpr double kLevelTolerance = 1.0;
+	constexpr double kFractionTolerance = 0.015;
+
+	int failures = 0;
+	Agreement all;
+	for( const Case& c : cases )
+	{
+		Session s;
+		for( const auto& kv : c.set )
+			set( s.plugin, kv.first, kv.second );
+		if( !s.begin( W, H ) )
+			return failures + report( false, quiet, "%s: InitGL failed", c.name );
+		Agreement a;
+		bool splitSame = true;
+		for( long f = 0; f <= frames[ 4 ]; ++f )
+		{
+			const std::vector< unsigned char > card = buildCard( W, H, f );
+			if( !s.render( f, card ) )
+				return failures + report( false, quiet, "%s: the plugin failed to render frame %ld", c.name, f );
+			if( std::find( std::begin( frames ), std::end( frames ), f ) == std::end( frames ) )
+				continue;
+			const std::vector< float > gpu = s.readAll();
+			const colourunder::frame::Plan plan = colourunder::frame::Make( valuesOf( s.plugin ), W, H, s.plugin.LastSecondsForTest() );
+			const std::vector< float > picture  = bottomFirst( card, W, H );
+			std::vector< float > threaded( picture.size() ), serial( picture.size() );
+			colourunder::cpu::Render( plan, picture.data(), threaded.data(), threadedFor, 0, H );
+			colourunder::cpu::Render( plan, picture.data(), serial.data(), colourunder::cpu::Serial, 0, H );
+			splitSame = splitSame && threaded == serial;
+			compareFrame( gpu, threaded, W, H, a );
+		}
+		s.end();
+		const bool ok = a.worst <= kFloatTolerance && a.worst8 <= kLevelTolerance
+		                && static_cast< double >( a.differ8 ) <= kFractionTolerance * static_cast< double >( a.values );
+		failures += report( ok, quiet, "%s: worst float difference %.2e (<= %.0e), 8-bit: %zu of %zu values differ (%.4f%%), worst %.0f level",
+		                    c.name, a.worst, kFloatTolerance, a.differ8, a.values, 100.0 * static_cast< double >( a.differ8 ) / static_cast< double >( a.values ), a.worst8 );
+		failures += report( splitSame, quiet, "%s: the CPU render split over threads is the serial one, bit for bit", c.name );
+		all.worst = std::max( all.worst, a.worst );
+		all.worst8 = std::max( all.worst8, a.worst8 );
+		all.differ8 += a.differ8;
+		all.values += a.values;
+	}
+	note( quiet, "over all %zu values: worst float %.2e, %zu 8-bit values differ, worst %.0f level", all.values, all.worst, all.differ8, all.worst8 );
+
+	//The control: the plugin at the defaults, the CPU at Chroma Delay 0.46.
+	{
+		Session s;
+		if( !s.begin( W, H ) )
+			return failures + report( false, quiet, "control: InitGL failed" );
+		const std::vector< unsigned char > card = buildCard( W, H, 0 );
+		s.render( 0, card );
+		const std::vector< float > gpu = s.readAll();
+		colourunder::frame::Values v   = valuesOf( s.plugin );
+		v.chromaDelay                  = controls::ChromaDelayParam( 0.46 );
+		const colourunder::frame::Plan plan = colourunder::frame::Make( v, W, H, s.plugin.LastSecondsForTest() );
+		const std::vector< float > picture  = bottomFirst( card, W, H );
+		std::vector< float > out( picture.size() );
+		colourunder::cpu::Render( plan, picture.data(), out.data(), threadedFor, 0, H );
+		s.end();
+		Agreement a;
+		compareFrame( gpu, out, W, H, a );
+		const bool caught = a.worst > kFloatTolerance || a.worst8 > kLevelTolerance;
+		failures += report( caught, quiet, "control: the plugin at Chroma Delay 0.45 against the CPU at 0.46 fails the comparison (worst %.2e, %.0f levels, %zu values differ)",
+		                    a.worst, a.worst8, a.differ8 );
+	}
+	return failures;
+}
+
+//---------------------------------------------------------------------------
 // --bench
 //---------------------------------------------------------------------------
 double benchAt( Colourunder& plugin, int width, int height, int frames, double fps, size_t& stateBytes )
@@ -1696,6 +1889,7 @@ void usage()
 		"  --generation        two generations: the composed chroma filter\n"
 		"  --tracking          the bar where the error puts it, widening, walking, any frame rate\n"
 		"  --resize            the state survives a resize\n"
+		"  --cpu               the OpenFX build's CPU passes give the GPU's picture, per pixel\n"
 		"  --negative          every check above can fail\n"
 		"  --perturb BITS      run the checks verbosely against a perturbed model (bits in Model.h)\n"
 		"\n"
@@ -1842,7 +2036,7 @@ int main( int argc, char** argv )
 	std::vector< std::string > settings;
 	std::vector< std::string > checks;
 
-	const std::set< std::string > rendered = { "--chroma", "--delay", "--switch", "--pal", "--doc", "--generation", "--tracking", "--resize", "--negative" };
+	const std::set< std::string > rendered = { "--chroma", "--delay", "--switch", "--pal", "--doc", "--generation", "--tracking", "--resize", "--negative", "--cpu" };
 	const std::set< std::string > offline  = { "--names", "--model" };
 
 	for( int i = 1; i < argc; ++i )
@@ -1975,6 +2169,8 @@ int main( int argc, char** argv )
 						runResize( width, height, perturb );
 					else if( check == "--negative" )
 						runNegative( width, height );
+					else if( check == "--cpu" )
+						runCpu( width, height );
 					else
 						continue;
 					std::printf( "\n" );

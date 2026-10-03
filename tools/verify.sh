@@ -42,6 +42,9 @@
 #                                 walking, the same at any frame rate
 #                   --resize      the state survives a resize
 #                   --negative    every one of those FAILS on a perturbed model
+#                   --cpu         the OpenFX build's CPU passes give the GPU's
+#                                 picture per pixel, and a control that must
+#                                 differ does
 #                 and again on Apple's SOFTWARE renderer (CI's), which is not
 #                 bit-repeatable (CUTEST_RENDERER=software).
 #   pipe          the fleet's frame contract, plus what a closed stdout (exit
@@ -60,6 +63,10 @@
 #   oxbow         a real FFGL host loads the bundle and reports the name, id
 #                 and type it sees -- the name field is not null-terminated
 #                 and a host truncates silently past 16 characters.
+#   openfx        the OpenFX bundle: CFBundleExecutable on disk, the bundle id,
+#                 OfxGetPlugin exported, universal, ad-hoc signable (the
+#                 release step), and ofxprobe -- a real OFX host -- loads it
+#                 from THIS build, sees its ten controls and renders a frame.
 #
 set -uo pipefail
 
@@ -168,7 +175,7 @@ rm -rf "$dir"
 
 for size in 320x180 960x540 1280x720; do
 	step "physics at $size"
-	for check in chroma delay switch pal doc generation tracking resize negative; do
+	for check in chroma delay switch pal doc generation tracking resize negative cpu; do
 		if out=$("$CUTEST" --$check --size $size 2>&1); then
 			pass "cutest --$check: $( printf '%s\n' "$out" | grep -v '^$' | tail -1 )"
 		else
@@ -183,7 +190,7 @@ done
 # resize check failed CI by one ulp), so a check that asserts exactness on this
 # Mac's GPU is found here before CI finds it.
 step "physics at 320x180 on the software renderer (CI's)"
-for check in chroma delay switch pal doc generation tracking resize negative; do
+for check in chroma delay switch pal doc generation tracking resize negative cpu; do
 	if out=$(CUTEST_RENDERER=software "$CUTEST" --$check --size 320x180 2>&1); then
 		pass "cutest --$check (software): $( printf '%s\n' "$out" | grep -v '^$' | tail -1 )"
 	else
@@ -371,6 +378,95 @@ if [ "$(uname)" = "Darwin" ] && [ -d "$BUNDLE" ]; then
 		esac
 	else
 		printf '   skipped: oxbow not built at %s\n' "$OXBOW"
+	fi
+fi
+
+#---------------------------------------------------------------------------
+# The OpenFX bundle.
+#
+# cmake/InfoOFX.plist.in is copied from repo to repo, and the version it was
+# once copied from had the PREVIOUS plugin's name in CFBundleExecutable. That
+# does not fail the build: the bundle assembles, lipo and nm both pass, a probe
+# host loads it and renders. It fails at RELEASE time, in codesign, with a
+# message about a "subcomponent" that never mentions the plist. So the plist is
+# checked against the binary and the release job's codesign is run on a copy.
+#
+# ofxprobe scans /Library/OFX/Plugins as well as --dir and the first identifier
+# match wins, so the check also asserts the bundle it rendered is this build's.
+#---------------------------------------------------------------------------
+OFXBUNDLE="$BUILD/Colourunder.ofx.bundle"
+OFXBIN="$OFXBUNDLE/Contents/MacOS/Colourunder.ofx"
+if [ "$(uname)" = "Darwin" ]; then
+	step "openfx"
+	if [ ! -f "$OFXBIN" ]; then
+		fail "no OpenFX bundle at $OFXBUNDLE (configured with -DBUILD_OFX=OFF?)"
+	else
+		exe=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$OFXBUNDLE/Contents/Info.plist" 2>/dev/null)
+		ident=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$OFXBUNDLE/Contents/Info.plist" 2>/dev/null)
+		if [ -n "$exe" ] && [ -f "$OFXBUNDLE/Contents/MacOS/$exe" ]; then
+			pass "CFBundleExecutable ($exe) is on disk"
+		else
+			fail "CFBundleExecutable is '$exe' but no such binary is in Contents/MacOS"
+		fi
+		if [ "$ident" = "com.stoatworks.colourunder.ofx" ]; then
+			pass "CFBundleIdentifier is $ident"
+		else
+			fail "CFBundleIdentifier is '$ident'"
+		fi
+		syms=$(nm -gU "$OFXBIN" 2>/dev/null)
+		case "$syms" in
+			*_OfxGetPlugin*) pass "exports OfxGetPlugin" ;;
+			*) fail "no OfxGetPlugin -- no OFX host will see a plugin" ;;
+		esac
+		archs=$(lipo -archs "$OFXBIN" 2>/dev/null)
+		case "$archs" in *arm64*) pass "arm64 present" ;; *) fail "no arm64 (got: $archs)" ;; esac
+		case "$archs" in *x86_64*) pass "x86_64 present" ;; *) fail "no x86_64 (got: $archs)" ;; esac
+		tmp=$(mktemp -d)
+		cp -R "$OFXBUNDLE" "$tmp/" 2>/dev/null
+		if codesign --force --sign - --timestamp=none "$tmp/Colourunder.ofx.bundle" >/dev/null 2>&1; then
+			pass "ad-hoc signs (the command the release job runs)"
+		else
+			fail "the OpenFX bundle will not codesign"
+			codesign --force --sign - --timestamp=none "$tmp/Colourunder.ofx.bundle" 2>&1 | sed 's/^/      /'
+		fi
+		rm -rf "$tmp"
+
+		OFXPROBE="${OFXPROBE:-$HOME/Projects/resolume/resolume-ofx-bridge/build/ofxprobe}"
+		if [ ! -x "$OFXPROBE" ]; then
+			printf '   skipped: ofxprobe not built at %s -- the OpenFX render is unchecked\n' "$OFXPROBE"
+		else
+			summary=$("$OFXPROBE" --dir "$BUILD" --quiet 2>&1)
+			listing=$(printf '%s\n' "$summary" | sed -n '/^com.stoatworks.colourunder$/,/^$/p')
+			case "$listing" in
+				*"bundle     : $BUILD/Colourunder.ofx.bundle"*) pass "ofxprobe finds com.stoatworks.colourunder in this build" ;;
+				*) fail "ofxprobe does not find com.stoatworks.colourunder in $BUILD (another bundle with the identifier first?)"
+				   printf '%s\n' "$listing" | sed 's/^/      /' ;;
+			esac
+			missing=""
+			for name in standard speed tracking headSwitch wear generation doc chromaDelay chromaNoise mix; do
+				# A here-string, not a pipe: `printf | grep -q` under pipefail
+				# fails when grep FINDS its match and the writer takes SIGPIPE.
+				grep -qE "^ +$name " <<<"$listing" || missing="$missing $name"
+			done
+			if [ -z "$missing" ]; then
+				pass "the host sees all ten controls"
+			else
+				fail "the host does not see:$missing"
+			fi
+			out=$(mktemp -d)
+			result=$("$OFXPROBE" --dir "$BUILD" --render com.stoatworks.colourunder --size 640x360 --out "$out/ofx.bmp" 2>&1)
+			case "$result" in
+				*"rendered 640x360"*)
+					if grep -qE "^ *0 of [0-9]+ bytes differ" <<<"$result"; then
+						fail "the OpenFX bundle renders its input unchanged"
+					else
+						pass "renders a frame ($(grep -oE '[0-9]+ of [0-9]+ bytes differ' <<<"$result"))"
+					fi ;;
+				*) fail "the OpenFX bundle does not render"
+				   printf '%s\n' "$result" | sed 's/^/      /' ;;
+			esac
+			rm -rf "$out"
+		fi
 	fi
 fi
 

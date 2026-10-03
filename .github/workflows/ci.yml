@@ -3,7 +3,10 @@ name: ci
 # Both platforms on every push and pull request, so a Dependabot bump has a
 # status check to gate on and a GLEW-shaped break -- which macOS is
 # structurally blind to, because macOS never links GLEW -- is caught before a
-# tag. There is no Linux job: the CMakeLists branches on APPLE and WIN32.
+# tag. Both build the OpenFX plugin as well as the FFGL one (BUILD_OFX is on
+# by default). The Linux OpenFX build and its load test are release.yml's
+# linux-ofx and linux-load jobs, which a workflow_dispatch runs without
+# publishing anything.
 on:
   push:
     branches: [main]
@@ -60,6 +63,24 @@ jobs:
           ./build/cutest --tracking   --size 320x180
           ./build/cutest --resize     --size 320x180
           ./build/cutest --negative   --size 320x180
+          ./build/cutest --cpu        --size 320x180
+
+      - name: OpenFX bundle
+        # The checks verify.sh runs on the bundle, minus lipo (this build is
+        # arm64 only) and minus a host: plist against binary, the entry point,
+        # and the release job's own codesign on a copy.
+        shell: bash
+        run: |
+          b=build/Colourunder.ofx.bundle
+          exe=$( /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$b/Contents/Info.plist" )
+          test -f "$b/Contents/MacOS/$exe" || { echo "CFBundleExecutable $exe is not in the bundle"; exit 1; }
+          __symbols=$( nm -gU "$b/Contents/MacOS/$exe" )
+          case "$__symbols" in
+            *_OfxGetPlugin*) echo "exports OfxGetPlugin" ;;
+            *) echo "no _OfxGetPlugin"; exit 1 ;;
+          esac
+          cp -R "$b" "$RUNNER_TEMP/"
+          codesign --force --sign - --timestamp=none "$RUNNER_TEMP/Colourunder.ofx.bundle"
 
       - name: Controls
         # At 160x90 and two at a time, because the runner has no GPU and the
@@ -95,8 +116,14 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel
 
+      - name: OpenFX plugin
+        shell: bash
+        run: test -f build/Colourunder.ofx.bundle/Contents/Win64/Colourunder.ofx
+
       - uses: actions/upload-artifact@v7
         with:
           name: colourunder-windows-x86_64
-          path: build/Release/*.dll
+          path: |
+            build/Release/*.dll
+            build/Colourunder.ofx.bundle/Contents/Win64/Colourunder.ofx
           if-no-files-found: error

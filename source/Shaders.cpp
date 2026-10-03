@@ -25,6 +25,10 @@ void main()
 //---------------------------------------------------------------------------
 // Shared by the passes that need them. BT.601's Y' and the PAL/NTSC U, V
 // scalings, both ways; the fleet's integer hash.
+//
+//= mirrored: the OpenFX build runs this on the CPU, in CpuPasses.cpp
+//(rgbToYuv, yuvToRgb, hashInt, hashUnit). A change here is a change
+//there; cutest --cpu compares them.
 //---------------------------------------------------------------------------
 const char* const kCommon = R"(
 const float kUScale = 0.492111;
@@ -65,6 +69,9 @@ float hashUnit( uint h )
 // are black wherever they are transparent (rgb <= a on 99.6 % of pixels, so
 // premultiplied), which is already the picture over black. Multiplying by
 // alpha again would darken every soft edge twice.
+//
+//= mirrored: the OpenFX build runs this on the CPU, in CpuPasses.cpp
+//(intakeLine). A change here is a change there; cutest --cpu compares them.
 //---------------------------------------------------------------------------
 const char* const kIntakeVBody = R"(
 uniform sampler2D Source;
@@ -96,6 +103,9 @@ void main()
 // Gaussian (Speed's bandwidth, in host pixels, centred on the sample); U and
 // V through a box of the sample's own k pixels, the anti-alias the chroma
 // kernel does not need at k = 1 and is identity there.
+//
+//= mirrored: the OpenFX build runs this on the CPU, in CpuPasses.cpp
+//(intakeLine). A change here is a change there; cutest --cpu compares them.
 //---------------------------------------------------------------------------
 const char* const kIntakeHBody = R"(
 uniform sampler2D Lines;
@@ -132,6 +142,9 @@ void main()
 // [ -sqrt 3, sqrt 3 ]. A pure function of ( sample, line, channel, Seed ),
 // and Seed of ( video frame, generation ), so a frame is the same picture
 // every time it is rendered.
+//
+//= mirrored: the OpenFX build runs this on the CPU, in CpuPasses.cpp
+//(tapeLine). A change here is a change there; cutest --cpu compares them.
 //---------------------------------------------------------------------------
 const char* const kNoiseBody = R"(
 uniform int Samples;
@@ -153,6 +166,9 @@ void main()
 
 //---------------------------------------------------------------------------
 // tape: one generation's record and playback, per sample.
+//
+//= mirrored: the OpenFX build runs this on the CPU, in CpuPasses.cpp
+//(tapeLine). A change here is a change there; cutest --cpu compares them.
 //---------------------------------------------------------------------------
 const char* const kTapeBody = R"(
 uniform sampler2D Src;
@@ -259,6 +275,9 @@ void main()
 // deck and PAL's delay line both add a line to the one 1H before it -- line
 // l - 2 of the frame, the same field. The first line of each field has
 // nothing above it and is left alone.
+//
+//= mirrored: the OpenFX build runs this on the CPU, in CpuPasses.cpp
+//(combAt, docLine). A change here is a change there; cutest --cpu compares them.
 //---------------------------------------------------------------------------
 const char* const kCombBody = R"(
 uniform sampler2D Src;
@@ -281,6 +300,9 @@ void main()
 // 1H delay line: the same place on the line before in the same field -- or,
 // if that line dropped out there too, the one before that, because the
 // delay line holds what the compensator itself put out.
+//
+//= mirrored: the OpenFX build runs this on the CPU, in CpuPasses.cpp
+//(docLine). A change here is a change there; cutest --cpu compares them.
 //---------------------------------------------------------------------------
 const char* const kDocBody = R"(
 uniform sampler2D Src;
@@ -318,6 +340,9 @@ void main()
 // k = 1 and no displacement reads each sample exactly. The displacement is
 // the line's time-base error as the TV shows it; past either end of the line
 // is blanking.
+//
+//= mirrored: the OpenFX build runs this on the CPU, in CpuPasses.cpp
+//(displayRow). A change here is a change there; cutest --cpu compares them.
 //---------------------------------------------------------------------------
 const char* const kDisplayBody = R"(
 uniform sampler2D Lines;
