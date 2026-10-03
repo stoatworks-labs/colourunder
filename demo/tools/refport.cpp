@@ -1,10 +1,11 @@
 // The reference side of demo/tools/check_port.sh. NOT a copy of the plugin:
 // check_port.mjs pastes three pieces of source/Colourunder.{h,cpp} into the
 // @@ markers below at run time, unedited -- the ParamID enum, the anonymous
-// namespace (loc, bindTarget, bindTextures, unbindTextures, setKernel,
-// frameSeed) and the whole of Colourunder::Colourunder() and
-// Colourunder::ProcessOpenGL -- and compiles them against the plugin's own
-// Model.cpp, Controls.cpp and Clock.cpp. What this file supplies is only the
+// namespace (loc, bindTarget, bindTextures, unbindTextures, setKernel) and
+// the whole of Colourunder::Colourunder() and Colourunder::ProcessOpenGL --
+// and compiles them against the plugin's own Model.cpp, Controls.cpp,
+// Clock.cpp and Frame.cpp (frame::Make, the plan ProcessOpenGL uploads; its
+// FrameSeed was the anonymous namespace's frameSeed). What this file supplies is only the
 // scaffolding those pieces need to compile without a GL context or the FFGL
 // SDK: GL entry points and ffglex classes that RECORD what the plugin does
 // (every uniform, by name, every texture bound per unit, every framebuffer
@@ -19,6 +20,7 @@
 #include "Model.h"
 #include "Controls.h"
 #include "Clock.h"
+#include "Frame.h"
 
 #include <algorithm>
 #include <cmath>

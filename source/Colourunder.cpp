@@ -2,6 +2,7 @@
 
 #include "Controls.h"
 #include "Diag.h"
+#include "Frame.h"
 #include "Model.h"
 #include "Shaders.h"
 
@@ -81,12 +82,6 @@ void setKernel( const FFGLShader& shader, const char* first, const char* count, 
 	glUniform1i( loc( shader, count ), k.count );
 	glUniform1fv( loc( shader, weights ), k.count, k.weights );
 }
-
-uint32_t frameSeed( int64_t frame, int generation )
-{
-	const uint64_t f = static_cast< uint64_t >( frame );
-	return model::Hash( static_cast< uint32_t >( f ) ^ model::Hash( static_cast< uint32_t >( f >> 32 ) + 0x4355AA00u + 977u * static_cast< uint32_t >( generation ) ) );
-}
 } // namespace
 
 //---------------------------------------------------------------------------
@@ -100,20 +95,22 @@ Colourunder::Colourunder()
 	SetTimeSupported( true );
 
 	//---------------------------------------------------------------------
-	// Defaults, chosen on Resolume's demo clips (AGENTS.md, "Decisions").
-	// Filled BEFORE any declaration: SetParamInfof reads its default out of
-	// GetFloatParameter.
+	// Defaults, chosen on Resolume's demo clips (AGENTS.md, "Decisions"),
+	// and written down once in frame::Values, which the OpenFX build's
+	// describe reads too. Filled BEFORE any declaration: SetParamInfof reads
+	// its default out of GetFloatParameter.
 	//---------------------------------------------------------------------
-	params[ PT_STANDARD ]     = static_cast< float >( model::kPAL );
-	params[ PT_SPEED ]        = static_cast< float >( model::kLP );
-	params[ PT_TRACKING ]     = 0.03f;
-	params[ PT_HEAD_SWITCH ]  = 0.45f;
-	params[ PT_WEAR ]         = 0.3f;
-	params[ PT_GENERATION ]   = 1.0f;
-	params[ PT_DOC ]          = 1.0f;
-	params[ PT_CHROMA_DELAY ] = controls::ChromaDelayParam( 0.45 );//the 2nd-order Butterworth's delay at 0.5 MHz
-	params[ PT_CHROMA_NOISE ] = 0.4f;
-	params[ PT_MIX ]          = 1.0f;
+	const frame::Values defaults;
+	params[ PT_STANDARD ]     = defaults.standard;
+	params[ PT_SPEED ]        = defaults.speed;
+	params[ PT_TRACKING ]     = defaults.tracking;
+	params[ PT_HEAD_SWITCH ]  = defaults.headSwitch;
+	params[ PT_WEAR ]         = defaults.wear;
+	params[ PT_GENERATION ]   = defaults.generation;
+	params[ PT_DOC ]          = defaults.doc;
+	params[ PT_CHROMA_DELAY ] = defaults.chromaDelay;
+	params[ PT_CHROMA_NOISE ] = defaults.chromaNoise;
+	params[ PT_MIX ]          = defaults.mix;
 
 	auto declareOptions = [ this ]( unsigned int id, const char* name, int count, const char* ( *nameAt )( int ) ) {
 		SetOptionParamInfo( id, name, static_cast< unsigned int >( count ), params[ id ] );
@@ -131,7 +128,7 @@ Colourunder::Colourunder()
 	//0..1 clamp of a STANDARD default.
 	SetParamInfo( PT_GENERATION, "Generation", FF_TYPE_INTEGER, params[ PT_GENERATION ] );
 	SetParamRange( PT_GENERATION, static_cast< float >( model::kGenerationsMin ), static_cast< float >( model::kGenerationsMax ) );
-	SetParamInfo( PT_DOC, "DOC", FF_TYPE_BOOLEAN, true );
+	SetParamInfo( PT_DOC, "DOC", FF_TYPE_BOOLEAN, defaults.doc >= 0.5f );
 
 	SetParamInfof( PT_CHROMA_DELAY, "Chroma Delay", FF_TYPE_STANDARD );
 	SetParamInfof( PT_CHROMA_NOISE, "Chroma Noise", FF_TYPE_STANDARD );
@@ -232,27 +229,6 @@ FFResult Colourunder::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 	const int H = static_cast< int >( picture.Height );
 
 	//---------------------------------------------------------------------
-	// The settings.
-	//---------------------------------------------------------------------
-	const int standardIndex   = controls::OptionIndex( params[ PT_STANDARD ], model::kStandardCount );
-	const int speed           = controls::OptionIndex( params[ PT_SPEED ], model::kSpeedCount );
-	const double tracking     = controls::Tracking( params[ PT_TRACKING ] );
-	const double switchUs     = controls::HeadSwitchUs( params[ PT_HEAD_SWITCH ] );
-	const double dropsPerFrame = controls::DropoutsPerFrame( params[ PT_WEAR ] );
-	const double wearGain     = controls::WearNoiseGain( params[ PT_WEAR ] );
-	const int generations     = controls::Generation( params[ PT_GENERATION ] );
-	const bool doc            = params[ PT_DOC ] >= 0.5f;
-	const double delayUs      = ( perturb & model::kPerturbNoDelay ) ? 0.0 : controls::ChromaDelayUs( params[ PT_CHROMA_DELAY ] );
-	const double chromaNoise  = quiet ? 0.0 : controls::ChromaNoise( params[ PT_CHROMA_NOISE ] ) * model::ChromaNoiseFactor( speed );
-	const double phaseSigma   = quiet ? 0.0 : controls::PhaseSigmaRad( params[ PT_CHROMA_NOISE ] );
-	const double lumaNoise    = quiet ? 0.0 : model::LumaNoise( speed );
-	const float mixAmount     = controls::Amount( params[ PT_MIX ] );
-
-	const model::Standard& standard = model::StandardOf( standardIndex );
-	raster                          = model::MakeRaster( standard, W, H );
-	const model::Raster& R          = raster;
-
-	//---------------------------------------------------------------------
 	// The clock. A resize is not a reason to touch it (the negative control
 	// makes it one).
 	//---------------------------------------------------------------------
@@ -262,8 +238,36 @@ FFResult Colourunder::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 	if( rasterChanged && ( perturb & model::kPerturbResizeResetsClock ) )
 		clock.Reset();
 	clock.Update( hostTimeSeen ? hostTime : -1.0 );
-	const double seconds = clock.Now();
-	const int64_t frame  = static_cast< int64_t >( std::floor( seconds * standard.FrameRate() ) );
+
+	//---------------------------------------------------------------------
+	// The frame's plan: the settings, the kernels, LineData, every
+	// generation's seed and dropouts -- in double, on the CPU, in Frame.cpp,
+	// which the OpenFX build's CPU render runs as well.
+	//---------------------------------------------------------------------
+	frame::Values values;
+	values.standard    = params[ PT_STANDARD ];
+	values.speed       = params[ PT_SPEED ];
+	values.tracking    = params[ PT_TRACKING ];
+	values.headSwitch  = params[ PT_HEAD_SWITCH ];
+	values.wear        = params[ PT_WEAR ];
+	values.generation  = params[ PT_GENERATION ];
+	values.doc         = params[ PT_DOC ];
+	values.chromaDelay = params[ PT_CHROMA_DELAY ];
+	values.chromaNoise = params[ PT_CHROMA_NOISE ];
+	values.mix         = params[ PT_MIX ];
+	frame::Hooks hooks;
+	hooks.perturb        = perturb;
+	hooks.quiet          = quiet;
+	hooks.forcePhase     = forcePhase;
+	hooks.forcedPhase    = forcedPhase;
+	hooks.forceTracking  = forceTracking;
+	hooks.forcedTracking = forcedTracking;
+	hooks.forceDropout   = forceDropout;
+	hooks.forcedDrop     = forcedDrop;
+	const frame::Plan plan = frame::Make( values, W, H, clock.Now(), hooks );
+	raster                 = plan.raster;
+	lastTracking           = plan.tracking;
+	const model::Raster& R = plan.raster;
 
 	//---------------------------------------------------------------------
 	// Buffers. Every allocation here, before anything binds a texture:
@@ -278,7 +282,7 @@ FFResult Colourunder::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 		diag::error( "could not allocate the line raster: " + std::to_string( R.Ws ) + " x " + std::to_string( R.N ) + " (host " + std::to_string( W ) + ")" );
 		return FF_FAIL;
 	}
-	const int dataRows = model::kGenerationsMax + 1;
+	const int dataRows = frame::Plan::kDataRows;
 	if( lineData == 0 || lineDataN != R.N )
 	{
 		if( lineData != 0 )
@@ -293,86 +297,8 @@ FFResult Colourunder::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 		glBindTexture( GL_TEXTURE_2D, 0 );
 		lineDataN = R.N;
 	}
-
-	//---------------------------------------------------------------------
-	// The kernels, in double, once a frame.
-	//---------------------------------------------------------------------
-	//The band edges are the CHAIN's: the intake's box and the display's
-	//reconstruction both cost a little at k > 1, so the first generation's
-	//Gaussians are designed with them in, and the stated bandwidths hold at
-	//every raster. Later generations are the tape's own filters.
-	const double lumaHalf      = model::LumaHalfHz( speed );
-	const double chromaHalf    = ( perturb & model::kPerturbChromaAsLuma ) ? lumaHalf : model::kChromaHalfHz;
-	const double lumaSigmaUs   = model::SigmaUs( lumaHalf );
-	const double chromaSigmaUs = model::SigmaUs( chromaHalf );
-	const double lumaFirstUs   = model::SigmaUsWith( lumaHalf, model::DisplayGain( lumaHalf * 1e-6 * R.usPerPixel, R.k ) );
-	const double chromaFirstUs = model::SigmaUsWith( chromaHalf, model::DisplayGain( chromaHalf * 1e-6 * R.usPerPixel, R.k ) * model::BoxGain( chromaHalf * 1e-6 * R.usPerPixel, R.k ) );
-	const double lowSigmaUs    = model::SigmaUs( model::kDeemphasisHz );
-	const model::Kernel intakeLuma = model::Gaussian( lumaFirstUs / R.usPerPixel, 0.0, -0.5 * ( R.k - 1 ) );
-	const model::Kernel lumaLater  = model::Gaussian( lumaSigmaUs / R.usPerSample, 0.0 );
-	const model::Kernel identity   = model::Gaussian( 0.0, 0.0 );
-	const model::Kernel chromaFirst = model::Gaussian( chromaFirstUs / R.usPerSample, delayUs / R.usPerSample );
-	const model::Kernel chroma     = model::Gaussian( chromaSigmaUs / R.usPerSample, delayUs / R.usPerSample );
-	const model::Kernel delayOnly  = model::Gaussian( 0.0, delayUs / R.usPerSample );
-	const model::Kernel chromaNoiseShape = model::UnitPower( model::Gaussian( chromaSigmaUs / std::sqrt( 2.0 ) / R.usPerSample, delayUs / R.usPerSample ) );
-	const model::Kernel lumaNoiseShape   = model::NoiseShape( lumaSigmaUs / R.usPerSample, lowSigmaUs / R.usPerSample );
-
-	//---------------------------------------------------------------------
-	// Per line: the tracking bar, the noise gain, the phase error, the
-	// switch; and the display's time-base. In double.
-	//---------------------------------------------------------------------
-	const double switchLine = model::SwitchLine( standard, perturb );
-	const int switchAt      = static_cast< int >( std::floor( switchLine ) );
-	const double switchSample = model::SwitchOffsetUs( standard, switchLine ) / R.usPerSample;
-	std::vector< float > data( static_cast< size_t >( R.N ) * dataRows * 4, 0.0f );
-	std::vector< double > finalBar( static_cast< size_t >( R.N ), 0.0 );
-	for( int g = 1; g <= generations; ++g )
-	{
-		const double e = forceTracking ? forcedTracking : model::TrackingError( tracking, seconds, static_cast< uint32_t >( g ) );
-		if( g == 1 )
-			lastTracking = e;
-		for( int l = 0; l < R.N; ++l )
-		{
-			const int m     = model::FieldLineOf( l );
-			const double rf = model::RfAt( standard, e, m, perturb );
-			const double w  = model::BarWeight( rf );
-			float* t        = data.data() + ( static_cast< size_t >( g - 1 ) * R.N + l ) * 4;
-			t[ 0 ]          = static_cast< float >( model::NoiseGain( rf ) * wearGain );
-			t[ 1 ]          = static_cast< float >( w );
-			const double phi = forcePhase ? forcedPhase : model::PhaseError( frame, g, l, phaseSigma );
-			t[ 2 ]          = static_cast< float >( std::cos( phi ) );
-			t[ 3 ]          = static_cast< float >( std::sin( phi ) );
-			if( g == generations )
-				finalBar[ static_cast< size_t >( l ) ] = w;
-		}
-	}
-	for( int l = 0; l < R.N; ++l )
-	{
-		const int m  = model::FieldLineOf( l );
-		double shift = 0.0;
-		double from  = 1e9;
-		if( switchUs > 0.0 && m >= switchAt )
-		{
-			//Every generation's deck switches heads at the same place and
-			//the steps are recorded along with the picture; the TV's AFC
-			//pulls the last of it back over kAfcLines.
-			shift = generations * switchUs * std::exp( -std::max( 0.0, m - switchLine ) / model::kAfcLines ) / R.usPerSample;
-			from  = m == switchAt ? switchSample : -1e9;
-		}
-		const double w = finalBar[ static_cast< size_t >( l ) ];
-		if( w > 0.0 )
-		{
-			//In the bar the sync goes with the picture: each line lands
-			//where the TV's flywheel guesses.
-			shift += w * 1.5 * model::BarJitter( frame, l ) / R.usPerSample;
-			from = -1e9;
-		}
-		float* t = data.data() + ( static_cast< size_t >( model::kGenerationsMax ) * R.N + l ) * 4;
-		t[ 0 ]   = static_cast< float >( shift );
-		t[ 1 ]   = static_cast< float >( from );
-	}
 	glBindTexture( GL_TEXTURE_2D, lineData );
-	glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, R.N, dataRows, GL_RGBA, GL_FLOAT, data.data() );
+	glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, R.N, dataRows, GL_RGBA, GL_FLOAT, plan.lineData.data() );
 	glBindTexture( GL_TEXTURE_2D, 0 );
 
 	//---------------------------------------------------------------------
@@ -395,7 +321,7 @@ FFResult Colourunder::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 		glUniform1i( loc( intakeHShader, "Lines" ), 0 );
 		glUniform1i( loc( intakeHShader, "HostW" ), W );
 		glUniform1i( loc( intakeHShader, "K" ), R.k );
-		setKernel( intakeHShader, "YFirst", "YCount", "YW", intakeLuma );
+		setKernel( intakeHShader, "YFirst", "YCount", "YW", plan.intakeLuma );
 		quad.Draw();
 		unbindTextures( 1 );
 	}
@@ -404,27 +330,15 @@ FFResult Colourunder::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 	// The generations.
 	//---------------------------------------------------------------------
 	GLuint source = intake.TextureID();
-	for( int g = 1; g <= generations; ++g )
+	for( int g = 1; g <= plan.generations; ++g )
 	{
-		//This generation's dropouts, in samples.
-		std::vector< model::Dropout > drops = model::Dropouts( frame, g, dropsPerFrame, R.N, standard.Active() );
-		if( g == 1 && forceDropout )
-			drops.insert( drops.begin(), forcedDrop );
-		float dropData[ 4 * model::kMaxDropouts ] = {};
-		const int dropCount = std::min( model::kMaxDropouts, static_cast< int >( drops.size() ) );
-		for( int i = 0; i < dropCount; ++i )
-		{
-			dropData[ 4 * i + 0 ] = static_cast< float >( drops[ i ].line );
-			dropData[ 4 * i + 1 ] = static_cast< float >( drops[ i ].us0 / R.usPerSample );
-			dropData[ 4 * i + 2 ] = static_cast< float >( drops[ i ].us1 / R.usPerSample );
-		}
-
+		const frame::Generation& G = plan.gen[ g - 1 ];
 		{
 			bindTarget( noise );
 			ScopedShaderBinding shader( noiseShader.GetGLID() );
 			glUniform1i( loc( noiseShader, "Samples" ), R.Ws );
 			glUniform1i( loc( noiseShader, "LineCount" ), R.N );
-			glUniform1ui( loc( noiseShader, "Seed" ), frameSeed( frame, g ) );
+			glUniform1ui( loc( noiseShader, "Seed" ), G.seed );
 			quad.Draw();
 		}
 		{
@@ -436,20 +350,19 @@ FFResult Colourunder::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 			glUniform1i( loc( tapeShader, "LineData" ), 2 );
 			glUniform1i( loc( tapeShader, "Samples" ), R.Ws );
 			glUniform1i( loc( tapeShader, "Gen" ), g - 1 );
-			glUniform1i( loc( tapeShader, "Pal" ), standardIndex == model::kPAL ? 1 : 0 );
-			setKernel( tapeShader, "YFirst", "YCount", "YW", g == 1 ? identity : lumaLater );
-			const bool bandLimit = g == 1 || !( perturb & model::kPerturbGenerationOnce );
-			setKernel( tapeShader, "CFirst", "CCount", "CW", g == 1 ? chromaFirst : bandLimit ? chroma : delayOnly );
-			setKernel( tapeShader, "NYFirst", "NYCount", "NYW", lumaNoiseShape );
-			setKernel( tapeShader, "NCFirst", "NCCount", "NCW", chromaNoiseShape );
-			glUniform1f( loc( tapeShader, "LumaSigma" ), static_cast< float >( lumaNoise ) );
-			glUniform1f( loc( tapeShader, "ChromaSigma" ), static_cast< float >( chromaNoise ) );
-			glUniform1i( loc( tapeShader, "BurstLine" ), switchUs > 0.0 ? switchAt : -1 );
-			glUniform1f( loc( tapeShader, "BurstStart" ), static_cast< float >( switchSample ) );
-			glUniform1i( loc( tapeShader, "BurstSamples" ), std::max( 1, static_cast< int >( std::lround( model::kSwitchBurstUs / R.usPerSample ) ) ) );
-			glUniform1f( loc( tapeShader, "BurstAmount" ), static_cast< float >( std::min( 1.0, params[ PT_HEAD_SWITCH ] * 1.5 ) ) );
-			glUniform1i( loc( tapeShader, "DropCount" ), dropCount );
-			glUniform4fv( loc( tapeShader, "Drops" ), model::kMaxDropouts, dropData );
+			glUniform1i( loc( tapeShader, "Pal" ), plan.pal );
+			setKernel( tapeShader, "YFirst", "YCount", "YW", G.luma );
+			setKernel( tapeShader, "CFirst", "CCount", "CW", G.chroma );
+			setKernel( tapeShader, "NYFirst", "NYCount", "NYW", plan.lumaNoiseShape );
+			setKernel( tapeShader, "NCFirst", "NCCount", "NCW", plan.chromaNoiseShape );
+			glUniform1f( loc( tapeShader, "LumaSigma" ), plan.lumaSigma );
+			glUniform1f( loc( tapeShader, "ChromaSigma" ), plan.chromaSigma );
+			glUniform1i( loc( tapeShader, "BurstLine" ), plan.burstLine );
+			glUniform1f( loc( tapeShader, "BurstStart" ), plan.burstStart );
+			glUniform1i( loc( tapeShader, "BurstSamples" ), plan.burstSamples );
+			glUniform1f( loc( tapeShader, "BurstAmount" ), plan.burstAmount );
+			glUniform1i( loc( tapeShader, "DropCount" ), G.dropCount );
+			glUniform4fv( loc( tapeShader, "Drops" ), model::kMaxDropouts, G.drops );
 			quad.Draw();
 			unbindTextures( 3 );
 		}
@@ -458,7 +371,7 @@ FFResult Colourunder::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 			ScopedShaderBinding shader( combShader.GetGLID() );
 			bindTextures( { work[ 0 ].TextureID() } );
 			glUniform1i( loc( combShader, "Src" ), 0 );
-			glUniform1i( loc( combShader, "Skip" ), ( standardIndex == model::kPAL && ( perturb & model::kPerturbNoPalAverage ) ) ? 1 : 0 );
+			glUniform1i( loc( combShader, "Skip" ), plan.combSkip );
 			quad.Draw();
 			unbindTextures( 1 );
 		}
@@ -467,8 +380,8 @@ FFResult Colourunder::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 			ScopedShaderBinding shader( docShader.GetGLID() );
 			bindTextures( { work[ 1 ].TextureID() } );
 			glUniform1i( loc( docShader, "Src" ), 0 );
-			glUniform1i( loc( docShader, "Enabled" ), doc ? 1 : 0 );
-			glUniform1i( loc( docShader, "Step" ), ( perturb & model::kPerturbDocAdjacent ) ? 1 : 2 );
+			glUniform1i( loc( docShader, "Enabled" ), plan.docEnabled );
+			glUniform1i( loc( docShader, "Step" ), plan.docStep );
 			quad.Draw();
 			unbindTextures( 1 );
 		}
@@ -492,8 +405,8 @@ FFResult Colourunder::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 		glUniform1i( loc( displayShader, "LineCount" ), R.N );
 		glUniform1i( loc( displayShader, "Samples" ), R.Ws );
 		glUniform1i( loc( displayShader, "K" ), R.k );
-		glUniform1i( loc( displayShader, "TimeRow" ), model::kGenerationsMax );
-		glUniform1f( loc( displayShader, "MixAmount" ), mixAmount );
+		glUniform1i( loc( displayShader, "TimeRow" ), frame::Plan::kTimeRow );
+		glUniform1f( loc( displayShader, "MixAmount" ), plan.mixAmount );
 		quad.Draw();
 		unbindTextures( 3 );
 	}

@@ -7,9 +7,11 @@
 // What it does. It pastes three pieces of the plugin into refport.cpp's
 // markers, unedited -- the ParamID enum from Colourunder.h; from
 // Colourunder.cpp the anonymous namespace (setKernel, bindTarget,
-// bindTextures, frameSeed, ...), the whole of Colourunder::Colourunder() and
-// the whole of Colourunder::ProcessOpenGL -- and compiles them with the
-// plugin's own Model.cpp, Controls.cpp and Clock.cpp. refport.cpp's GL and
+// bindTextures, ...), the whole of Colourunder::Colourunder() and the whole of
+// Colourunder::ProcessOpenGL -- and compiles them with the plugin's own
+// Model.cpp, Controls.cpp, Clock.cpp and Frame.cpp (frame::Make, the plan
+// ProcessOpenGL turns into uniforms and the OpenFX build renders from).
+// refport.cpp's GL and
 // ffglex stand-ins record instead of drawing: each parameter the constructor
 // declares, and per frame the clock, the LineData upload (every float), and
 // every pass -- its shader, the buffer it draws into, the texture on each
@@ -24,7 +26,7 @@
 // `cutest --pipe` on the same input is the end-to-end check of those
 // (AGENTS.md, "The browser demo"). The scenarios never reach a video frame
 // above 2^32 (the clock starts at 0 and advances by at most 0.5 s a frame),
-// so the 64-bit halves of low() and frameSeed() are exercised only at zero.
+// so the 64-bit halves of low() and FrameSeed() are exercised only at zero.
 
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
@@ -68,7 +70,8 @@ writeFileSync(join(dir, 'refport_gen.cpp'), ref);
 function reference(tag, flags) {
   const exe = join(dir, `refport-${tag}`);
   const build = spawnSync('c++', ['-std=c++17', ...flags, '-Wall', '-Wno-unused-function', '-I', join(REPO, 'source'), join(dir, 'refport_gen.cpp'),
-    join(REPO, 'source/Model.cpp'), join(REPO, 'source/Controls.cpp'), join(REPO, 'source/Clock.cpp'), '-o', exe], { encoding: 'utf8' });
+    join(REPO, 'source/Model.cpp'), join(REPO, 'source/Controls.cpp'), join(REPO, 'source/Clock.cpp'),
+    join(REPO, 'source/Frame.cpp'), '-o', exe], { encoding: 'utf8' });
   if (build.status !== 0) {
     console.log(`FAIL  the reference (${flags.join(' ')}) did not compile:`);
     console.log(build.stderr.split('\n').slice(0, 30).join('\n'));

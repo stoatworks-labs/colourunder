@@ -43,6 +43,27 @@ endif()
 option(COLOURUNDER_BUILD_TOOLS "Build the offline render and measurement harness" ON)
 
 # ---------------------------------------------------------------------------
+# The parts with no GL in them at all: the deck's arithmetic, the controls, the
+# clock and the frame plan (the CPU half of ProcessOpenGL).
+#
+# A separate library from the FFGL core because a CPU render of the same deck
+# needs it and has no GL context. Splitting it is what lets that build link the
+# SAME arithmetic rather than a second transcription of it.
+# ---------------------------------------------------------------------------
+add_library(colourunder_dsp OBJECT
+    source/Model.h
+    source/Model.cpp
+    source/Controls.h
+    source/Controls.cpp
+    source/Clock.h
+    source/Clock.cpp
+    source/Frame.h
+    source/Frame.cpp
+)
+target_include_directories(colourunder_dsp PUBLIC source)
+set_target_properties(colourunder_dsp PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# ---------------------------------------------------------------------------
 # The Resolume FFGL SDK, as a git submodule pinned to b1afaf9 -- the rev the
 # rest of the fleet pins.
 # ---------------------------------------------------------------------------
@@ -70,22 +91,16 @@ add_library(colourunder_core OBJECT
     source/StoatworksAboutParams.h
     source/Diag.h
     source/Diag.cpp
-    source/Model.h
-    source/Model.cpp
-    source/Controls.h
-    source/Controls.cpp
     source/PassBuffer.h
     source/PassBuffer.cpp
     source/Shaders.h
     source/Shaders.cpp
-    source/Clock.h
-    source/Clock.cpp
     source/Colourunder.h
     source/Colourunder.cpp
 )
 
 target_include_directories(colourunder_core PUBLIC source)
-target_link_libraries(colourunder_core PUBLIC ffgl::sdk)
+target_link_libraries(colourunder_core PUBLIC ffgl::sdk colourunder_dsp)
 target_compile_definitions(colourunder_core PUBLIC COLOURUNDER_VERSION="${PROJECT_VERSION}")
 set_target_properties(colourunder_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
@@ -108,7 +123,12 @@ endif()
 # ---------------------------------------------------------------------------
 function(colourunder_add_plugin target entry bundle_name identifier)
     add_library(${target} MODULE ${entry})
-    target_link_libraries(${target} PRIVATE colourunder_core)
+    # colourunder_dsp is named again here, and on every other final target,
+    # because an OBJECT library's objects do NOT travel transitively through a
+    # second OBJECT library: colourunder_core linking it gives this target the
+    # include paths and nothing to link, and the failure is a pile of undefined
+    # symbols at the very last step of an otherwise clean build.
+    target_link_libraries(${target} PRIVATE colourunder_core colourunder_dsp)
 
     if(APPLE)
         set_target_properties(${target} PROPERTIES
@@ -157,7 +177,7 @@ install(TARGETS Colourunder
 # ---------------------------------------------------------------------------
 if(COLOURUNDER_BUILD_TOOLS AND APPLE)
     add_executable(cutest tools/cutest/main.cpp)
-    target_link_libraries(cutest PRIVATE colourunder_core z
+    target_link_libraries(cutest PRIVATE colourunder_core colourunder_dsp z
         "-framework OpenGL"
         "-framework AppKit"
     )

@@ -17,7 +17,9 @@
  *                         harness's and this page's case): origin + offset in
  *                         double, a jump of one nominal frame on a backward or
  *                         over-long delta. The unit vote never runs here.
- *   Colourunder.cpp       the CPU half of ProcessOpenGL: the settings, the
+ *   Frame.cpp             the CPU half of ProcessOpenGL (frame::Make, which
+ *                         Colourunder.cpp turns into uniforms and the OpenFX
+ *                         build renders from): the settings, the
  *                         raster, the clock, the video frame, the nine
  *                         kernels, LineData (per generation: noise gain, bar
  *                         weight, cos and sin of the phase error; the display
@@ -28,7 +30,7 @@
  * `planFrame()` returns all of it as a plan -- the LineData floats and the
  * passes with their uniforms -- which the page's GL half (plugin.js) executes.
  * `demo/tools/check_port.sh` compiles the plugin's own Model.cpp,
- * Controls.cpp and Clock.cpp with Colourunder.cpp's ProcessOpenGL cut out of
+ * Controls.cpp, Clock.cpp and Frame.cpp with Colourunder.cpp's ProcessOpenGL cut out of
  * the file at run time (GL stubbed to record every uniform and upload), and
  * compares its record with `planFrame()`'s, value for value. Only a reader
  * checks the GL half.
@@ -438,7 +440,7 @@ export const DECLARATIONS = [
   { index: PT.MIX, name: 'Mix', type: 'standard', group: 'Colour', default: DEFAULTS[PT.MIX] },
 ];
 
-/** frameSeed() in Colourunder.cpp's anonymous namespace. */
+/** frame::FrameSeed() in Frame.cpp. */
 export function frameSeed(frame, generation) {
   const b = BigInt.asUintN(64, BigInt(frame));
   const lo32 = Number(b & 0xffffffffn) >>> 0;
