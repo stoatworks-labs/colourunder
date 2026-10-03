@@ -1,7 +1,8 @@
 # Colourunder user guide
 
 Colourunder is **VHS's helical-scan colour-under recording, for [Resolume](https://resolume.com)
-Arena and Avenue**, as an FFGL effect. It does not paint a "VHS look" over the clip. It records the
+Arena and Avenue**, as an FFGL effect, and for DaVinci Resolve, Vegas, Nuke and Natron as an
+OpenFX plugin (see [OpenFX: Resolve, Vegas, Nuke, Natron](#openfx-resolve-vegas-nuke-natron)). It does not paint a "VHS look" over the clip. It records the
 clip the way a VHS deck does and plays it back: the colour heterodyned down under the luma's FM
 carrier and back up again, two heads on a spinning drum laying the picture down a field at a time,
 a tracking servo that is never quite on the track, and oxide that is sometimes missing. The soft,
@@ -53,6 +54,41 @@ The macOS download is a universal build (Apple silicon and Intel), as a `.dmg` o
 It is Developer ID-signed and notarised by the release pipeline after publication, so the bundle
 simply loads; if macOS refuses a download, it predates the signing — download it again. The Windows download is an x64 installer or a `.zip`. It is not
 code-signed, so the installer trips SmartScreen once: **More info** → **Run anyway**.
+
+### OpenFX: Resolve, Vegas, Nuke, Natron
+
+The OpenFX build is a separate download, `colourunder-ofx-<platform>.zip`, for macOS, Windows
+and Linux. Copy `Colourunder.ofx.bundle` into the system's OpenFX folder and restart the host:
+
+```
+macOS    /Library/OFX/Plugins/
+Windows  C:\Program Files\Common Files\OFX\Plugins\
+Linux    /usr/OFX/Plugins/
+```
+
+It appears as **Colourunder** in the host's **Stoatworks** group. It has the same ten controls
+in the same three groups, with the same ranges and defaults, so everything in this guide applies
+to it, with these differences:
+
+- **The tape's clock is the clip's own time.** In Resolume the noise, the dropouts and the
+  tracking drift run on the time since the effect started. In an OpenFX host they are tied to the
+  frame: a frame always renders the same, whether it is rendered alone, in order or twice, and
+  scrubbing back shows the same tape. The noise still changes with each video frame of the chosen
+  standard (25 or 29.97 a second), so on a 50 or 60 fps timeline it holds for two frames.
+- **Standard and Speed cannot be keyframed.** The sliders, Generation and DOC can.
+- **A clip with straight (unpremultiplied) alpha** is recorded as the picture over black, as a
+  premultiplied one is. At Mix 1 the output is opaque.
+- **A proxy or reduced-resolution render** keeps the bandwidths, the delay, the head switch and
+  the line count, which are set in microseconds and lines, but draws the noise per sample, so its
+  pattern differs from the full-resolution render's.
+- It renders on the CPU: about 4 ms a 1920 × 1080 frame at the defaults and 12 ms at
+  Generation 5 on 8 threads of an M4 Max.
+
+It is the same deck, not a lookalike: the per-frame arithmetic is the same C++ as the Resolume
+build's, and the per-pixel passes are a line-for-line copy of its shaders, checked against them
+to within one 8-bit level. **It has never been loaded into Resolve, Vegas, Nuke or Natron**; it has
+been loaded and rendered only by the fleet's own OpenFX test host, where a frame rendered alone,
+after the frames before it or out of order came out byte for byte the same.
 
 ---
 
@@ -253,6 +289,19 @@ with other work:
 samples by 576 lines, whatever the composition's size. Nothing was timed inside Resolume, and
 nothing was timed on Windows.
 
+The OpenFX build renders on the CPU instead, measured the same way on the same machine:
+
+| | defaults, ms a frame | Generation 5, Tracking 1, Wear 1 |
+| --- | --- | --- |
+| 1920 × 1080, 8 threads | 4.1 | 12.0 |
+| 1920 × 1080, 1 thread | 28 | 83 |
+| 3840 × 2160, 8 threads | 9.5 | 17.6 |
+
+That is the effect alone. Inside the fleet's own OpenFX test host, which converts 8-bit frames
+in and out and lends the effect 8 threads, a 1920 × 1080 frame took 6.1 ms at the defaults and
+14.4 ms at Generation 5, and a 3840 × 2160 one 16 and 24 ms. Nothing was timed inside Resolve or
+any other production host.
+
 ---
 
 ## If it looks wrong
@@ -307,7 +356,10 @@ Windows  %LOCALAPPDATA%\colourunder\logs\colourunder.YYYY-MM-DD.log
 - **Never seen on camera footage**, only on Resolume's bundled CG loops and generated bars.
 - **Only ever run on an Apple M4 Max**, although the macOS build contains an Intel slice. On
   Windows, see the note at the top of this guide.
-- **No presets and no OpenFX version.**
+- **No presets.**
+- **The OpenFX build has never been loaded into Resolve, Vegas, Nuke or Natron**, only into the
+  fleet's own OpenFX test host, and only on macOS. The Windows and Linux OpenFX builds are
+  compiled by CI; the Linux one is load-tested there, and neither has rendered a frame.
 - **There is a browser demo** at [colourunder-demo.stoatworks-labs.com](https://colourunder-demo.stoatworks-labs.com/).
   It is a port to a web page, not the plugin: the eight shaders run in WebGL2 unedited, and the
   per-line CPU half (the tracking geometry and drift, the head switch, the phase error, the
@@ -319,8 +371,8 @@ Windows  %LOCALAPPDATA%\colourunder\logs\colourunder.YYYY-MM-DD.log
 
 ## About
 
-The last group, **About**, carries the plugin's name, version, licence and maker, and buttons that
-open this user guide ([stoatworks-labs.com/software/colourunder/guide/](https://stoatworks-labs.com/software/colourunder/guide/)),
+The last group, **About** (folded, in the OpenFX build), carries the plugin's name, version,
+licence and maker, and buttons that open this user guide ([stoatworks-labs.com/software/colourunder/guide/](https://stoatworks-labs.com/software/colourunder/guide/)),
 the project page, the source on GitHub and the support page in your browser.
 
 VHS is a format; the plugin is not affiliated with, or endorsed by, JVC or any maker of video

@@ -15,10 +15,15 @@
 > stated geometry puts it, for any error and over 20 s of drift; and a resize changes
 > nothing — with eight negative controls that prove each check can fail. It has **never
 > been loaded into Resolume**; it is loaded by [oxbow](https://github.com/stoatworks-labs/oxbow),
-> which is a real FFGL host and is not Resolume. See [Status](#status).
+> which is a real FFGL host and is not Resolume. The OpenFX build runs the same per-frame
+> C++ and a line-for-line C++ mirror of the shaders, and agrees with the GPU to 7e-7 on
+> every pixel compared (never more than one 8-bit level); it has **never been loaded into
+> Resolve, Vegas, Nuke or Natron**, only into the fleet's own OFX test host. See [Status](#status).
 
 VHS's helical-scan colour-under recording, as an FFGL effect for
-[Resolume](https://resolume.com) Arena and Avenue.
+[Resolume](https://resolume.com) Arena and Avenue, and as an
+[OpenFX plugin](#openfx--resolve-vegas-nuke-natron) for DaVinci Resolve, Vegas, Nuke and
+Natron.
 
 ![Resolume's demo clip IntoTheGlow_02 through the deck: a symmetrical tunnel of lit panels, soft, the colour late and blotchy on the copper edges, and a band of tracking noise across the bottom](docs/hero.jpg)
 
@@ -133,6 +138,67 @@ error, a visible head-switch tear at the bottom, a few dropouts compensated, the
 0.45 µs late with some blotch. Chosen on Resolume's demo clips. The output is opaque at
 Mix 1: a tape has no alpha.
 
+## OpenFX — Resolve, Vegas, Nuke, Natron
+
+The same deck also builds as an OpenFX plugin — **Colourunder**, under **Stoatworks** in
+the host's effects list (`com.stoatworks.colourunder`) — a CPU render for DaVinci Resolve,
+Vegas Pro, Nuke and Natron, on macOS (universal), Windows and Linux. Releases carry it as
+`colourunder-ofx-<platform>.zip`, separate from the Resolume zips. Copy
+`Colourunder.ofx.bundle` into the system's OpenFX folder and restart the host:
+
+```
+macOS    /Library/OFX/Plugins/
+Windows  C:\Program Files\Common Files\OFX\Plugins\
+Linux    /usr/OFX/Plugins/
+```
+
+The Linux build is made against glibc 2.28, so it loads on Rocky 8 — the Linux Resolve
+supports — and on anything newer.
+
+**What is the same.** All ten controls, with the same names, ranges, defaults and groups
+(Standard and Speed are choices, Generation an integer 1–5, DOC a checkbox). The whole CPU
+half of the plugin is the same code, not a port: `frame::Make` (`source/Frame.cpp`) works
+out the kernels, the tracking error and its bar, the head switch, the phase error, the
+dropouts and the noise seeds for both builds. What exists twice is only the per-pixel work
+of the seven shaders, mirrored line for line in `source/CpuPasses.cpp` and marked
+`//= mirrored` on both sides; `cutest --cpu` renders both on the same frames and they
+agree to 7e-7, never more than one 8-bit level apart.
+
+**What differs.**
+
+- **The tape's clock is the clip's time.** In Resolume it is the time since the effect
+  started, because FFGL hands a plugin one frame at a time. OpenFX renders frames in any
+  order, alone and on several threads, so here it is the frame's own time (frame number ÷
+  frame rate). The tracking drift, and the noise, the dropouts, the phase error and the
+  bar's jitter that change with each video frame (25 or 29.97 a second), were already a
+  pure function of that time, so a frame renders the same alone, in order, backwards or
+  twice, and scrubbing back shows the same tape. Nothing is carried from one frame to the
+  next, and the plugin asks the host for no other frames: a tape has no memory of the frame
+  before.
+- **Standard and Speed are not keyframeable** (choice parameters, as in the fleet's other
+  OpenFX ports). The sliders, Generation and DOC are.
+- **A straight-alpha clip** is multiplied by its alpha on the way in and divided on the
+  way out, so both conventions record the picture over black, as the Resolume build does
+  with Resolume's premultiplied clips. At Mix 1 the output is opaque either way.
+- **Mix 0** is reported to the host as an identity, so the host skips the render.
+- **A proxy or reduced-resolution render** runs the deck at that resolution. The
+  bandwidths, the delay, the head switch and the line count are set in microseconds and
+  lines and do not change; the noise is drawn per sample, so its pattern is not the
+  full-resolution render's.
+- **The About block** is a folded group with a credit line and link buttons, where
+  Resolume shows a text parameter and event buttons.
+
+Nothing is dropped: the Resolume build has no audio input, no beat sync and no momentary
+buttons, so every control means the same thing in both.
+
+**Cost.** On an Apple M4 Max, `cpu::Render` at 1920×1080 takes 4.1 ms a frame at the
+defaults and 12.0 ms at Generation 5 (Tracking 1, Wear 1) on 8 threads, 28 and 83 ms on
+one; at 3840×2160, 9.5 and 17.6 ms on 8 threads. Inside an OpenFX host (the fleet's test
+host, its own 8-thread pool, 8-bit frames converted in and out) a 1920×1080 frame takes
+6.1 and 14.4 ms, a 3840×2160 one 16 and 24 ms (medians of ten). The line raster is at
+most 1024 samples by 576 lines whatever the frame size, so only the intake and the
+display grow with it.
+
 ## Status
 
 **v0.1.0, released 25 September 2026, and honestly early.** There is a
@@ -169,6 +235,31 @@ every check at 320×180, 960×540 and 1280×720 and again on Apple's software re
   ignores the error, the tracking; a resize that restarts the clock, the resize.
 - **No dead controls**: all 10 change the picture.
 - **The bundle** is universal, and oxbow sees `SW Colourunder`, `CU01`, an effect.
+- **The OpenFX build against the GPU** (`cutest --cpu`, the same frames of the moving card
+  through the plugin's GL passes and through `cpu::Render`, noise on, five frames over a
+  second at each of four settings from the defaults to NTSC with everything up and EP at
+  Generation 5): worst float difference 6.6e-7 at every raster and on the software
+  renderer, never more than one 8-bit level (939 of 166 million values at 1920×1080); the
+  render split over threads is the serial one bit for bit; and the plugin at Chroma Delay
+  0.45 against the CPU at 0.46 fails the comparison, as it must. A one-character slip in the
+  mirror (PAL's V switch on every other pair of lines; one Catmull-Rom weight) fails it by
+  up to 72 levels.
+- **The OpenFX bundle in an OpenFX host**: ofxprobe (resolume-ofx-bridge's test host, and
+  a build of it with image and sequence inputs, time, frame rate and batches) loads it from
+  the build, sees its ten controls and the About group, and renders it. A moving hard-edged
+  colour card, as a sequence, through `cutest --pipe` (frames in order from 0) and through
+  the host (seven frames from 0 to 61 rendered out of order in one instance), at four
+  settings, at 640×360 and 25 fps, 1280×720 and 60 fps, and 640×360 and 29.97 fps in float:
+  every frame within 1/255, at most 0.026 % of values differing (the Mix 0.5 setting;
+  0.0014 % at the others); Chroma Delay 0.45 against 0.46 differs on 15 %. On the stock
+  probe's own ramp at time 0 the same, except that at Mix 0.5 1.1 % of values differ by
+  one — all but 6 of them values lying on an exact half level, which the plugin's `lround`
+  rounds up and the GPU's conversion rounds down.
+- **Out of order is the same picture**: frame 40 rendered alone, after frames 0–39 in one
+  instance, and after 60 down to 41, is byte-identical, at the defaults and at Generation
+  5; frame 39 differs from it, because the tape moves. The plugin asks the host for the
+  source at the render time only, and with every other fetch refused the frame is
+  unchanged. Mix 0 is reported as an identity and the host's copy is the input exactly.
 
 Render cost, `cutest --bench` (best of three, `glFinish` both sides, a shared GPU):
 
@@ -204,8 +295,13 @@ every video frame and set the gate's noise floor (5.3 levels). The harness sweep
 ### Not done
 
 - **Never loaded into Resolume on macOS.** On Windows, see above.
+- **The OpenFX build has never been loaded into DaVinci Resolve, Vegas, Nuke or Natron.**
+  ofxprobe is a real OFX host and is none of them: Filter context only, render scale 1,
+  8-bit and float RGBA, premultiplied, no proxies, no tiles, no 16-bit, macOS arm64 only.
+  The Windows and Linux OpenFX builds are compiled by CI, and the Linux one is loaded
+  (dlopen and the two entry points) on Rocky 8, but neither has rendered a frame.
 - Seen only on Resolume's bundled demo clips and generated bars, never on camera footage.
-- No OpenFX port, no factory presets.
+- No factory presets.
 
 ## Browser demo
 
@@ -237,6 +333,11 @@ The macOS bundle is universal (Apple Silicon and Intel). `cmake --install build`
 into `~/Documents/Resolume Arena/Extra Effects`; for Avenue, pass
 `--prefix "$HOME/Documents/Resolume Avenue/Extra Effects"`.
 
+The same build makes `build/Colourunder.ofx.bundle`, the OpenFX plugin; copy it into
+`/Library/OFX/Plugins` yourself (nothing installs it). `-DBUILD_OFX=OFF` leaves it out;
+`-DCOLOURUNDER_BUILD_FFGL=OFF` builds it alone, with no FFGL SDK, no GLEW and no GL at all,
+which is how the Linux build is made.
+
 ## Building and testing
 
 ```sh
@@ -244,6 +345,7 @@ tools/verify.sh                                   # everything, ~15 minutes
 ./build/cutest --list                             # the parameters
 ./build/cutest --chroma --size 320x180            # one check
 ./build/cutest --negative                         # every check can fail
+./build/cutest --cpu                              # the OpenFX build's CPU passes against the GPU's
 python3 tools/sweep.py                            # no dead controls
 ffmpeg -i clip.mov -vf fps=60 -f rawvideo -pix_fmt rgba - | ./build/cutest --pipe --size 1280x720 | ffplay -f rawvideo -pixel_format rgba -video_size 1280x720 -framerate 60 -
 ```

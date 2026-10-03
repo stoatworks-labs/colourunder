@@ -6,6 +6,8 @@ turns into desaturation and NTSC shows as hue), the head switch 6.5 lines before
 a tracking bar that walks as the error drifts, dropouts and the compensator, SP/LP/EP and
 copies of copies — as an FFGL **effect** (`SW Colourunder`, `CU01`) for Resolume
 Arena/Avenue. C++/GLSL, CMake MODULE → universal `.bundle` (macOS) + Windows `.dll`. MIT.
+Also an **OpenFX** plugin (`Colourunder`, `com.stoatworks.colourunder`, CPU render) for
+Resolve/Vegas/Nuke/Natron: `Colourunder.ofx.bundle`, macOS universal + Win64 + Linux.
 
 Read `AGENTS.md` before changing the chain, a band edge, the geometry or a check's
 tolerance.
@@ -17,6 +19,12 @@ tolerance.
 - Build: `cmake --build build --parallel`
 - Install into Arena: `cmake --install build` — **not run from a session**, it writes
   into `~/Documents/Resolume Arena/Extra Effects`
+- The OpenFX plugin is built alongside: `build/Colourunder.ofx.bundle` (nothing installs
+  it; `/Library/OFX/Plugins` is root-owned). `-DBUILD_OFX=OFF` drops it;
+  `-DCOLOURUNDER_BUILD_FFGL=OFF` builds it alone with nothing but a compiler (the Linux job)
+- Render it in a real OFX host: `~/Projects/resolume/resolume-ofx-bridge/build/ofxprobe --dir build
+  --render com.stoatworks.colourunder --size 1280x720 --set generation=3 --out /tmp/o.bmp`
+  (`--dir` ADDS a path; `/Library/OFX/Plugins` is scanned too and the first identifier wins)
 - Render a frame offline: `./build/cutest --out /tmp/f.png --size 1920x1080`
   (90 frames of the moving card at a synthetic 60 fps, then the last one;
   `--average` writes the mean of every frame instead)
@@ -37,7 +45,8 @@ tolerance.
 ## Verify
 - Everything: `tools/verify.sh` (fresh universal build + glslc + the reserved-word grep
   + every check at 320x180, 960x540 AND 1280x720 AND on the software renderer + --pipe +
-  the sweep + the bundle + oxbow; ~15 min on this Mac, most of it the software renderer)
+  the sweep + the bundle + oxbow + the OpenFX bundle through ofxprobe; ~15 min on this
+  Mac, most of it the software renderer)
 - The colour-under band and the luma band by speed: `./build/cutest --chroma`
 - The chroma's group delay, whole-pixel and fractional: `./build/cutest --delay`
 - The head switch on its lines, both standards: `./build/cutest --switch`
@@ -46,6 +55,7 @@ tolerance.
 - Two generations compose the chroma filter: `./build/cutest --generation`
 - The tracking bar's geometry, widening, walk and frame-rate independence: `./build/cutest --tracking`
 - The state survives a resize: `./build/cutest --resize`
+- The OpenFX build's CPU passes against the GPU's, per pixel: `./build/cutest --cpu`
 - The checks can fail: `./build/cutest --negative`; one perturbation verbosely:
   `./build/cutest --perturb BITS --pal` (bits in `Model.h`)
 - The plugin's numbers against the stated ones, no GL: `./build/cutest --model`
@@ -62,6 +72,19 @@ tolerance.
   double: the two rasters, the band edges, the kernels, the tracking geometry and drift,
   the head switch, the dropouts, the phase error. `Shaders.cpp` convolves, adds noise,
   combs, compensates and displays. A wrong format number is a fix in `Model.cpp`.
+- **One frame plan, two renderers.** `Frame.{h,cpp}` (`frame::Make`) is the per-frame
+  CPU half both builds run: ProcessOpenGL turns the Plan into uniforms and LineData, the
+  OpenFX plugin hands it to `CpuPasses.cpp`. The defaults live in `frame::Values`.
+- **The per-pixel passes exist twice**: GLSL in `Shaders.cpp`, C++ in `CpuPasses.cpp`,
+  line for line, each marked `//= mirrored`. **A shader change is a CpuPasses.cpp change**
+  (and the reverse); `cutest --cpu` fails on a one-character slip. Keep the float
+  arithmetic in the shader's order: the agreement is 7e-7, not "close".
+- `colourunder_dsp` (Model, Controls, Clock, Frame, CpuPasses) is GL-free and links into
+  every target; `colourunder_core` is the FFGL half. Name `colourunder_dsp` on every final
+  target: OBJECT libraries' objects do not travel through another OBJECT library.
+- **The OpenFX clock is the clip's time** (`time / frame rate`), not the FFGL Clock: OFX
+  renders out of order, alone and concurrently. No state between renders, no temporal
+  clip access, `setSupportsTiles( false )` (the line raster is the whole frame).
 - **The line raster.** N lines (576 PAL, 480 NTSC) by Ws = ceil(W / k) samples, k =
   ceil(W / 1024) host pixels a sample. Every line mechanism (the 1H comb, DOC, the head
   switch, the bar) is exact on it; the display shows each host row's nearest line.
@@ -93,7 +116,9 @@ tolerance.
 
 ## Not done yet
 - Never loaded into Resolume on macOS. On Windows the fleet Arena gate passed 9/9 (llvmpipe).
-- No OpenFX port, no presets.
+- The OpenFX build has never been loaded into Resolve, Vegas, Nuke or Natron — only
+  ofxprobe (Filter context, one frame at t = 0). Linux: CI's Rocky 8 dlopen only.
+- No presets.
 
 ## Browser demo
 
@@ -107,8 +132,8 @@ place to edit.
 - **A shader change in the plugin: `python3 demo/tools/sync_shaders.py`**, then
   `python3 demo/tools/check_shaders.py --dump DIR` after `cutest --dump-shaders DIR`
   (verify.sh does both). Never hand-edit the generated block.
-- **A change to Model.cpp, Controls.cpp, Clock.cpp, the constructor or ProcessOpenGL's CPU
-  half means the same change by hand in `demo/model.js`**, then `demo/tools/check_port.sh`
+- **A change to Model.cpp, Controls.cpp, Clock.cpp, Frame.cpp, the constructor or
+  ProcessOpenGL means the same change by hand in `demo/model.js`**, then `demo/tools/check_port.sh`
   (verify.sh runs it): it compiles the plugin's own code under a recorder and compares
   every declaration, LineData float and uniform with the port. A renamed marker it cuts
   on (`enum ParamID`, the anonymous namespace, `Colourunder::Colourunder()`,
