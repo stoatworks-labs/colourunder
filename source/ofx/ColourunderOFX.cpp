@@ -291,6 +291,23 @@ public:
 		mix         = fetchDoubleParam( kParamMix );
 	}
 
+	/// The deck's noise and faults run off the frame's time. Unless a plugin says
+	/// so, a host may treat its output as fixed while its inputs and parameters
+	/// are, and Resolve's Fusion page does: it rendered every fleet generator
+	/// once and repeated that frame. A preference, not a requirement: a host that
+	/// does not know the property is left to its own default rather than failing
+	/// the effect.
+	void getClipPreferences( OFX::ClipPreferencesSetter& preferences ) override
+	{
+		try
+		{
+			preferences.setOutputFrameVarying( true );
+		}
+		catch( ... )
+		{
+		}
+	}
+
 	void render( const OFX::RenderArguments& args ) override
 	{
 		std::unique_ptr< OFX::Image > dst( dstClip->fetchImage( args.time ) );
