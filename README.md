@@ -17,8 +17,9 @@
 > been loaded into Resolume**; it is loaded by [oxbow](https://github.com/stoatworks-labs/oxbow),
 > which is a real FFGL host and is not Resolume. The OpenFX build runs the same per-frame
 > C++ and a line-for-line C++ mirror of the shaders, and agrees with the GPU to 7e-7 on
-> every pixel compared (never more than one 8-bit level); it has **never been loaded into
-> Resolve, Vegas, Nuke or Natron**, only into the fleet's own OFX test host. See [Status](#status).
+> every pixel compared (never more than one 8-bit level); as a Fusion tool in DaVinci Resolve
+> Studio 21.1 on macOS it renders the fleet's own OFX test host's picture to within one 8-bit
+> level, and it has **never been loaded into Vegas, Nuke or Natron**. See [Status](#status).
 
 VHS's helical-scan colour-under recording, as an FFGL effect for
 [Resolume](https://resolume.com) Arena and Avenue, and as an
@@ -142,8 +143,9 @@ Mix 1: a tape has no alpha.
 
 The same deck also builds as an OpenFX plugin — **Colourunder**, under **Stoatworks** in
 the host's effects list (`com.stoatworks.colourunder`) — a CPU render for DaVinci Resolve,
-Vegas Pro, Nuke and Natron, on macOS (universal), Windows and Linux. Releases carry it as
-`colourunder-ofx-<platform>.zip`, separate from the Resolume zips. Copy
+Vegas Pro, Nuke and Natron, on macOS (universal), Windows and Linux. It ships from v0.2.0,
+as three zips beside the Resolume downloads: `colourunder-ofx-macos-universal.zip`,
+`colourunder-ofx-windows-x86_64.zip` and `colourunder-ofx-linux-x86_64.zip`. Copy
 `Colourunder.ofx.bundle` into the system's OpenFX folder and restart the host:
 
 ```
@@ -169,8 +171,9 @@ agree to 7e-7, never more than one 8-bit level apart.
 - **The tape's clock is the clip's time.** In Resolume it is the time since the effect
   started, because FFGL hands a plugin one frame at a time. OpenFX renders frames in any
   order, alone and on several threads, so here it is the frame's own time (frame number ÷
-  frame rate). The tracking drift, and the noise, the dropouts, the phase error and the
-  bar's jitter that change with each video frame (25 or 29.97 a second), were already a
+  frame rate; PAL's 25 fps when the host gives none). The tracking drift, and the noise,
+  the dropouts, the phase error and the bar's jitter that change with each video frame (25
+  or 29.97 a second), were already a
   pure function of that time, so a frame renders the same alone, in order, backwards or
   twice, and scrubbing back shows the same tape. Nothing is carried from one frame to the
   next, and the plugin asks the host for no other frames: a tape has no memory of the frame
@@ -188,8 +191,9 @@ agree to 7e-7, never more than one 8-bit level apart.
 - **The About block** is a folded group with a credit line and link buttons, where
   Resolume shows a text parameter and event buttons.
 
-Nothing is dropped: the Resolume build has no audio input, no beat sync and no momentary
-buttons, so every control means the same thing in both.
+Nothing is dropped: the Resolume build has no audio input, no beat sync and, outside the
+About block's link buttons, no momentary buttons, so every control means the same thing in
+both.
 
 **Cost.** On an Apple M4 Max, `cpu::Render` at 1920×1080 takes 4.1 ms a frame at the
 defaults and 12.0 ms at Generation 5 (Tracking 1, Wear 1) on 8 threads, 28 and 83 ms on
@@ -201,7 +205,8 @@ display grow with it.
 
 ## Status
 
-**v0.1.0, released 25 September 2026, and honestly early.** There is a
+**v0.2.0, which adds the OpenFX build, and honestly early.** (v0.1.0, the Resolume build
+alone, was released 25 September 2026.) There is a
 [user guide](https://stoatworks-labs.com/software/colourunder/guide/)
 ([PDF](docs/USER-GUIDE.pdf)) and a [project page](https://stoatworks-labs.com/software/colourunder/).
 
@@ -282,6 +287,16 @@ Switch, Wear, DOC and Chroma Noise inconclusive, because the tape noise and drop
 every video frame and set the gate's noise floor (5.3 levels). The harness sweep shows all
 10 change the picture. Software rendering says nothing about a GPU or about speed.
 
+### In DaVinci Resolve on macOS
+
+The OpenFX build loads in DaVinci Resolve Studio 21.1 and renders as a Fusion tool (MediaIn,
+Colourunder, MediaOut, a render job to PNG; 1920×1080, 32-bit float). Six frames of a
+colour-bar sequence at Generation 3, Chroma Noise 0.8 and Wear 0.6 are ofxprobe's render
+of the same frames at 24 fps to within one 8-bit level: the first identical, the
+others at most 4 pixels of 2 073 600 one level apart. Fusion gave the source clip no frame
+rate and the effect 24, so the build's 25 fps fallback was not reached. It has been tried
+only as a Fusion tool, and nothing was timed.
+
 ### What filming found
 
 - The tracking bar moves less than the control suggests: at Tracking 0.3 it is still in the
@@ -295,11 +310,12 @@ every video frame and set the gate's noise floor (5.3 levels). The harness sweep
 ### Not done
 
 - **Never loaded into Resolume on macOS.** On Windows, see above.
-- **The OpenFX build has never been loaded into DaVinci Resolve, Vegas, Nuke or Natron.**
-  ofxprobe is a real OFX host and is none of them: Filter context only, render scale 1,
-  8-bit and float RGBA, premultiplied, no proxies, no tiles, no 16-bit, macOS arm64 only.
-  The Windows and Linux OpenFX builds are compiled by CI, and the Linux one is loaded
-  (dlopen and the two entry points) on Rocky 8, but neither has rendered a frame.
+- **The OpenFX build has never been loaded into Vegas, Nuke or Natron**, and into DaVinci
+  Resolve only on macOS, as a Fusion tool (see above). ofxprobe is a real OFX host and is
+  none of them: Filter context only, render scale 1, 8-bit and float RGBA, premultiplied,
+  no proxies, no tiles, no 16-bit, macOS arm64 only. The Windows and Linux OpenFX builds
+  are compiled by CI, and the Linux one is loaded (dlopen and the two entry points) on
+  Rocky 8, but neither has rendered a frame in any host.
 - Seen only on Resolume's bundled demo clips and generated bars, never on camera footage.
 - No factory presets.
 

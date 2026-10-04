@@ -423,11 +423,12 @@ content: `curl -s 'https://colourunder-demo.stoatworks-labs.com/?cb=1' | grep -o
 - No pre-/de-emphasis nonlinearity (the white-clip streaking after sharp edges), no
   composite Y/C separation between generations (a dub over composite would add
   cross-colour), no azimuth crosstalk, no audio.
-- ☠️ **The OpenFX build has never been loaded into Resolve, Vegas, Nuke or Natron.** It is
-  loaded and rendered by ofxprobe (Filter context only, 8-bit and float RGBA, premultiplied,
-  render scale 1, no tiles); the General context, 16-bit pixels, straight alpha, proxy
-  renders and a production host's thread pool are untried. The Linux build is only
-  dlopened on Rocky 8 in CI.
+- ☠️ **The OpenFX build has never been loaded into Vegas, Nuke or Natron**, and into Resolve
+  only as a Fusion tool on macOS (see "In Resolve", below). Otherwise it is loaded and
+  rendered by ofxprobe (Filter context only, 8-bit and float RGBA, premultiplied, render
+  scale 1, no tiles); the General context, 16-bit pixels, straight alpha and proxy renders
+  are untried. The Windows build has never rendered a frame in any host, and the Linux
+  build is only dlopened on Rocky 8 in CI.
 
 ---
 
@@ -482,6 +483,22 @@ at Generation 5; frames needed `[t, t]`; `--strict-frames` identical; Mix 0 `isI
 CPU cost on the M4 Max: `cpu::Render` at 1920x1080 4.1 ms (defaults) / 12.0 ms (Generation
 5, Tracking 1, Wear 1) on 8 threads, 28 / 83 ms on one, 3840x2160 9.5 / 17.6 ms; inside the
 host (its 8-thread pool, 8-bit marshalling) 6.1 / 14.4 ms at 1080p, 16 / 24 ms at 4K.
+
+**In Resolve (render 2026-10-03, compared 2026-10-04).** Loaded into DaVinci Resolve Studio
+21.1 on macOS (through `OFX_PLUGIN_PATH`) and rendered as a Fusion tool (MediaIn →
+Colourunder → MediaOut, a render job to PNG, 1920x1080, Filter context, float RGBA
+premultiplied): six frames of a colour-bar sequence. The settings were not recorded; a
+search with the extended ofxprobe recovered them, because frame 0 is byte-identical to the
+host's at Generation 3, Chroma Noise 0.8, Wear 0.6, and its neighbours are not (Wear 0.55
+or 0.65: worst 85 and 66 levels; Chroma Noise 0.75 or 0.85: 16; Generation 2 or 4: 255).
+At those settings and 24 fps, frames 0-5 are within 1/255 of the host's (at most 4 of
+2 073 600 pixels differ). At 25 fps the same frames are worst 2/255, and the differences,
+in the tracking bar's lines, grow with the frame: the drift is a function of the seconds.
+That is because Fusion did give the effect a frame rate: the Support library's debug log
+shows the Source clip's `kOfxImageEffectPropFrameRate` get failing (`kOfxStatErrUnknown`,
+caught) and the effect's returning 24. So in Resolve the 25 fps fallback was not reached;
+it is still unexercised by any real host. The video frame is floor( seconds x 25 ), so
+frames 0-23 land on the same noise at 24 and 25 fps and only the drift tells them apart.
 
 **Traps.** `Standard` and `Speed` are choice params and do not animate (the fleet's
 macroblock setting). ofxprobe's `--dir` adds a scan path and `/Library/OFX/Plugins` is

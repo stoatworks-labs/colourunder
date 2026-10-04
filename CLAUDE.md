@@ -111,13 +111,16 @@ tolerance.
 - macOS build must be universal. Verify with `lipo`, never the build log.
 - FFGL id is `CU01`. Display name `SW Colourunder`.
 - Released v0.1.0 (2026-09-25): public repo, on the website, user guide, video
-  `nwt7SoegUVM`. `StoatworksAbout.h` and `ATTRIBUTIONS.md` are GENERATED
+  `nwt7SoegUVM`. v0.2.0 adds the OpenFX build (`colourunder-ofx-<platform>.zip`).
+  `StoatworksAbout.h` and `ATTRIBUTIONS.md` are GENERATED
   (stoatworks-backend `sync-about.py` / `sync-attributions.py`): do not hand-edit them.
 
 ## Not done yet
 - Never loaded into Resolume on macOS. On Windows the fleet Arena gate passed 9/9 (llvmpipe).
-- The OpenFX build has never been loaded into Resolve, Vegas, Nuke or Natron — only
-  ofxprobe (Filter context, one frame at t = 0). Linux: CI's Rocky 8 dlopen only.
+- The OpenFX build has never been loaded into Vegas, Nuke or Natron. Resolve: only as a
+  Fusion tool on macOS (within 1/255 of ofxprobe at 24 fps; AGENTS.md, "In Resolve").
+  Otherwise only ofxprobe (Filter context). Windows: never rendered in a host. Linux: CI's
+  Rocky 8 dlopen only.
 - No presets.
 
 ## Browser demo

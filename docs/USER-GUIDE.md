@@ -14,7 +14,7 @@ repeated dropouts are what that recorder does.
 *Resolume's bundled demo clip IntoTheGlow_02 at the defaults, with Tracking up to 0.12 so the bar
 has left the vertical interval. Rendered by the offline harness, not captured from Resolume.*
 
-> **Before you rely on this:** released at **v0.1.0**, and honestly early. The deck is measured
+> **Before you rely on this:** released at **v0.2.0**, which added the OpenFX build, and honestly early. The deck is measured
 > rather than asserted, by a harness that drives the real plugin class and reads each claim back
 > out of the picture it renders, at 320 × 180, 960 × 540 and 1280 × 720 and again on Apple's
 > software renderer: chroma's response falls to half at 0.50000 MHz (39 lines) on PAL and NTSC,
@@ -27,9 +27,10 @@ has left the vertical interval. Rendered by the offline harness, not captured fr
 > stated geometry puts it; and a resize changes nothing. Eight deliberately broken models are each
 > shown to fail their check, and all 10 controls are shown to change the picture. **The checks
 > verify the stated model, not a real deck**, and several of the format's numbers are weakly
-> sourced or unsourced: see Where the numbers come from, which says which. On macOS it has **never
-> been loaded into Resolume**; the one host it has run in there is the fleet's own test host,
-> `oxbow`.
+> sourced or unsourced: see Where the numbers come from, which says which. On macOS the Resolume
+> build has **never been loaded into Resolume**; the one FFGL host it has run in there is the
+> fleet's own test host, `oxbow`. The OpenFX build has run in DaVinci Resolve there, as a Fusion
+> tool (see [OpenFX](#openfx-resolve-vegas-nuke-natron)).
 > On Windows it has: a build of this source loads, registers and renders in Resolume Arena 7.27.1 on software rendering (win-lab, Mesa llvmpipe, no GPU), with all 16 host controls matching what the plugin declares, in the fleet's Arena gate (9 of 9 checks). The gate's picture is a still, and the tape noise and dropouts change every frame, so the picture never stands still: Opacity, Mix, Generation and Chroma Delay read as moving it, and the other seven controls came back inconclusive against that noise floor rather than dead. Software rendering says nothing about a GPU or about speed.
 > Try it on a spare layer before you put it in a show.
 >
@@ -39,7 +40,7 @@ has left the vertical interval. Rendered by the offline harness, not captured fr
 
 ## Installing
 
-Every download carries one effect, **SW Colourunder**. Drop it into Resolume's effects folder and
+Every Resolume download carries one effect, **SW Colourunder**. Drop it into Resolume's effects folder and
 restart Resolume:
 
 ```
@@ -57,8 +58,10 @@ code-signed, so the installer trips SmartScreen once: **More info** → **Run an
 
 ### OpenFX: Resolve, Vegas, Nuke, Natron
 
-The OpenFX build is a separate download, `colourunder-ofx-<platform>.zip`, for macOS, Windows
-and Linux. Copy `Colourunder.ofx.bundle` into the system's OpenFX folder and restart the host:
+From v0.2.0 the OpenFX build is a separate download, one zip a platform:
+`colourunder-ofx-macos-universal.zip`, `colourunder-ofx-windows-x86_64.zip` and
+`colourunder-ofx-linux-x86_64.zip`. Copy `Colourunder.ofx.bundle` into the system's OpenFX
+folder and restart the host:
 
 ```
 macOS    /Library/OFX/Plugins/
@@ -74,7 +77,8 @@ to it, with these differences:
   tracking drift run on the time since the effect started. In an OpenFX host they are tied to the
   frame: a frame always renders the same, whether it is rendered alone, in order or twice, and
   scrubbing back shows the same tape. The noise still changes with each video frame of the chosen
-  standard (25 or 29.97 a second), so on a 50 or 60 fps timeline it holds for two frames.
+  standard (25 or 29.97 a second), so on a 50 or 60 fps timeline it holds for two frames. A host
+  that gives no frame rate is taken to run at PAL's 25.
 - **Standard and Speed cannot be keyframed.** The sliders, Generation and DOC can.
 - **A clip with straight (unpremultiplied) alpha** is recorded as the picture over black, as a
   premultiplied one is. At Mix 1 the output is opaque.
@@ -86,9 +90,11 @@ to it, with these differences:
 
 It is the same deck, not a lookalike: the per-frame arithmetic is the same C++ as the Resolume
 build's, and the per-pixel passes are a line-for-line copy of its shaders, checked against them
-to within one 8-bit level. **It has never been loaded into Resolve, Vegas, Nuke or Natron**; it has
-been loaded and rendered only by the fleet's own OpenFX test host, where a frame rendered alone,
-after the frames before it or out of order came out byte for byte the same.
+to within one 8-bit level. In DaVinci Resolve Studio 21.1 on macOS it renders as a Fusion tool,
+and six frames rendered there match the fleet's own OpenFX test host's render of the same frames
+to within one 8-bit level; it has been tried there only as a Fusion tool. **It has never been
+loaded into Vegas, Nuke or Natron.** In the test host, a frame rendered alone, after the frames
+before it or out of order came out byte for byte the same.
 
 ---
 
@@ -357,9 +363,10 @@ Windows  %LOCALAPPDATA%\colourunder\logs\colourunder.YYYY-MM-DD.log
 - **Only ever run on an Apple M4 Max**, although the macOS build contains an Intel slice. On
   Windows, see the note at the top of this guide.
 - **No presets.**
-- **The OpenFX build has never been loaded into Resolve, Vegas, Nuke or Natron**, only into the
-  fleet's own OpenFX test host, and only on macOS. The Windows and Linux OpenFX builds are
-  compiled by CI; the Linux one is load-tested there, and neither has rendered a frame.
+- **The OpenFX build has never been loaded into Vegas, Nuke or Natron**, and into DaVinci
+  Resolve only as a Fusion tool; beyond that, only into the fleet's own OpenFX test host. All of
+  it on macOS. The Windows and Linux OpenFX builds are compiled by CI; the Linux one is
+  load-tested there, and neither has rendered a frame in any host.
 - **There is a browser demo** at [colourunder-demo.stoatworks-labs.com](https://colourunder-demo.stoatworks-labs.com/).
   It is a port to a web page, not the plugin: the eight shaders run in WebGL2 unedited, and the
   per-line CPU half (the tracking geometry and drift, the head switch, the phase error, the
