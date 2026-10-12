@@ -10,8 +10,8 @@ anybody this works.
 
 VHS's helical-scan colour-under recording as an FFGL 2.1 effect (`CU01`, shown as
 `SW Colourunder`) for Resolume Arena and Avenue. C++17 + GLSL 4.10, CMake, universal
-macOS `.bundle` and (by CI, untried) a Windows `.dll`. MIT, intended home
-`github.com/stoatworks-labs/colourunder`.
+macOS `.bundle` and (by CI; run only in Arena on win-lab, see Release) a Windows `.dll`.
+MIT, public at `github.com/stoatworks-labs/colourunder`.
 
 And, since 2026-10-03, the same deck as an **OpenFX** image effect (`Colourunder`,
 `com.stoatworks.colourunder`, grouping Stoatworks) for DaVinci Resolve, Vegas, Nuke and
