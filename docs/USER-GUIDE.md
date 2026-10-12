@@ -1,38 +1,54 @@
 # Colourunder user guide
 
-Colourunder is **VHS's helical-scan colour-under recording, for [Resolume](https://resolume.com)
-Arena and Avenue**, as an FFGL effect, and for DaVinci Resolve, Vegas, Nuke and Natron as an
-OpenFX plugin (see [OpenFX: Resolve, Vegas, Nuke, Natron](#openfx-resolve-vegas-nuke-natron)). It does not paint a "VHS look" over the clip. It records the
-clip the way a VHS deck does and plays it back: the colour heterodyned down under the luma's FM
-carrier and back up again, two heads on a spinning drum laying the picture down a field at a time,
-a tracking servo that is never quite on the track, and oxide that is sometimes missing. The soft,
+Colourunder is VHS's helical-scan colour-under recording for [Resolume](https://resolume.com)
+Arena and Avenue, as an FFGL effect, and for DaVinci Resolve, Vegas, Nuke and Natron as an
+OpenFX plugin (see [OpenFX: Resolve, Vegas, Nuke, Natron](#openfx-resolve-vegas-nuke-natron)):
+it records your clip the way a VHS deck does, then plays it back.
+
+There's no "VHS look" painted over the top. The colour is heterodyned down under the luma's FM
+carrier and back up again, two heads on a spinning drum lay the picture down a field at a time,
+the tracking servo is never quite on the track, and now and then the oxide is missing. The soft,
 late colour, the blotchy colour noise, the torn bottom lines, the walking noise bar and the
-repeated dropouts are what that recorder does.
+repeated dropouts are just what that recorder does.
 
 ![Resolume's demo clip IntoTheGlow_02 through the deck: a symmetrical tunnel of lit panels, soft, the colour late and blotchy on the copper edges, and a band of tracking noise across the bottom](hero.jpg)
 
 *Resolume's bundled demo clip IntoTheGlow_02 at the defaults, with Tracking up to 0.12 so the bar
-has left the vertical interval. Rendered by the offline harness, not captured from Resolume.*
+has left the vertical interval. Rendered by the offline harness rather than captured from
+Resolume.*
 
-> **Before you rely on this:** released at **v0.2.0**, which added the OpenFX build, and honestly early. The deck is measured
-> rather than asserted, by a harness that drives the real plugin class and reads each claim back
-> out of the picture it renders, at 320 × 180, 960 × 540 and 1280 × 720 and again on Apple's
-> software renderer: chroma's response falls to half at 0.50000 MHz (39 lines) on PAL and NTSC,
-> luma's at 3.00, 2.76 and 2.40 MHz for SP, LP and EP where the raster can carry it; a colour
-> edge's chroma lags its luma by the stated delay to 1e-4 px; the head switch disturbs exactly the
-> lines from 6.5 H before vertical sync and not one row above; a forced 20° playback phase error is
-> 20° of hue on every NTSC line and, on PAL, no hue shift on any line and a saturation of cos 20°;
-> a dropout with DOC on is, bit for bit, the line 1H before; a second generation multiplies the
-> chroma response by the tape's filter again; the tracking bar sits on every field line where the
-> stated geometry puts it; and a resize changes nothing. Eight deliberately broken models are each
-> shown to fail their check, and all 10 controls are shown to change the picture. **The checks
-> verify the stated model, not a real deck**, and several of the format's numbers are weakly
-> sourced or unsourced: see Where the numbers come from, which says which. On macOS the Resolume
-> build has **never been loaded into Resolume**; the one FFGL host it has run in there is the
-> fleet's own test host, `oxbow`. The OpenFX build has run in DaVinci Resolve there, as a Fusion
-> tool (see [OpenFX](#openfx-resolve-vegas-nuke-natron)).
-> On Windows it has: a build of this source loads, registers and renders in Resolume Arena 7.27.1 on software rendering (win-lab, Mesa llvmpipe, no GPU), with all 16 host controls matching what the plugin declares, in the fleet's Arena gate (9 of 9 checks). The gate's picture is a still, and the tape noise and dropouts change every frame, so the picture never stands still: Opacity, Mix, Generation and Chroma Delay read as moving it, and the other seven controls came back inconclusive against that noise floor rather than dead. Software rendering says nothing about a GPU or about speed.
-> Try it on a spare layer before you put it in a show.
+> **Before you rely on this:** it's at **v0.2.0**, which added the OpenFX build, and still early
+> days. The deck is measured rather than taken on trust, by a harness that drives the real plugin
+> class and reads each claim back out of the picture it renders, at 320 × 180, 960 × 540 and
+> 1280 × 720 and again on Apple's software renderer. It shows that:
+>
+> - chroma's response falls to half at 0.50000 MHz (39 lines) on PAL and NTSC, and luma's at
+>   3.00, 2.76 and 2.40 MHz for SP, LP and EP where the raster can carry it;
+> - a colour edge's chroma lags its luma by the stated delay to 1e-4 px;
+> - the head switch disturbs exactly the lines from 6.5 H before vertical sync and not one row
+>   above;
+> - a forced 20° playback phase error is 20° of hue on every NTSC line and, on PAL, no hue shift
+>   on any line and a saturation of cos 20°;
+> - a dropout with DOC on is, bit for bit, the line 1H before;
+> - a second generation multiplies the chroma response by the tape's filter again;
+> - the tracking bar sits on every field line where the stated geometry puts it;
+> - a resize changes nothing.
+>
+> Eight models broken on purpose are each shown to fail their check, and all 10 controls are
+> shown to change the picture. **The checks verify the stated model, not a real deck**, and
+> several of the format's numbers are weakly sourced or unsourced: Where the numbers come from
+> says which.
+>
+> On macOS the Resolume build has **never been loaded into Resolume**; the one FFGL host it's
+> run in there is the fleet's own test host, `oxbow`. The OpenFX build has run in DaVinci Resolve
+> there, as a Fusion tool (see [OpenFX](#openfx-resolve-vegas-nuke-natron)). On Windows it has
+> been loaded into Resolume: a build of this source loads, registers and renders in Resolume
+> Arena 7.27.1 on software rendering (win-lab, Mesa llvmpipe, no GPU), with all 16 host controls
+> matching what the plugin declares, in the fleet's Arena gate (9 of 9 checks). The gate's
+> picture is a still, and the tape noise and dropouts change every frame, so the picture never
+> stands still: Opacity, Mix, Generation and Chroma Delay read as moving it, and the other seven
+> controls came back inconclusive against that noise floor rather than dead. Software rendering
+> says nothing about a GPU or about speed. Try it on a spare layer before you put it in a show.
 >
 > This codebase was created with AI assistance, directed and reviewed by a human author.
 
@@ -40,21 +56,22 @@ has left the vertical interval. Rendered by the offline harness, not captured fr
 
 ## Installing
 
-Every Resolume download carries one effect, **SW Colourunder**. Drop it into Resolume's effects folder and
-restart Resolume:
+Every Resolume download has one effect in it, **SW Colourunder**. Drop it into Resolume's
+effects folder and restart Resolume:
 
 ```
 macOS    ~/Documents/Resolume Arena/Extra Effects/
 Windows  %USERPROFILE%\Documents\Resolume Arena\Extra Effects\
 ```
 
-Avenue uses the same layout under its own folder name. The effect then appears in the effects
+Avenue uses the same layout under its own folder name. The effect then shows up in the effects
 browser as **SW Colourunder**.
 
 The macOS download is a universal build (Apple silicon and Intel), as a `.dmg` or a `.zip`.
-It is Developer ID-signed and notarised by the release pipeline after publication, so the bundle
-simply loads; if macOS refuses a download, it predates the signing — download it again. The Windows download is an x64 installer or a `.zip`. It is not
-code-signed, so the installer trips SmartScreen once: **More info** → **Run anyway**.
+It's Developer ID-signed and notarised by the release pipeline after publication, so the bundle
+just loads; if macOS refuses a download, it predates the signing, so download it again. The
+Windows download is an x64 installer or a `.zip`. It isn't code-signed, so the installer trips
+SmartScreen once: **More info** → **Run anyway**.
 
 ### OpenFX: Resolve, Vegas, Nuke, Natron
 
@@ -69,17 +86,17 @@ Windows  C:\Program Files\Common Files\OFX\Plugins\
 Linux    /usr/OFX/Plugins/
 ```
 
-It appears as **Colourunder** in the host's **Stoatworks** group. It has the same ten controls
+It shows up as **Colourunder** in the host's **Stoatworks** group. It has the same ten controls
 in the same three groups, with the same ranges and defaults, so everything in this guide applies
 to it, with these differences:
 
 - **The tape's clock is the clip's own time.** In Resolume the noise, the dropouts and the
-  tracking drift run on the time since the effect started. In an OpenFX host they are tied to the
-  frame: a frame always renders the same, whether it is rendered alone, in order or twice, and
+  tracking drift run on the time since the effect started. In an OpenFX host they're tied to the
+  frame: a frame always renders the same, whether it's rendered alone, in order or twice, and
   scrubbing back shows the same tape. The noise still changes with each video frame of the chosen
   standard (25 or 29.97 a second), so on a 50 or 60 fps timeline it holds for two frames. A host
   that gives no frame rate is taken to run at PAL's 25.
-- **Standard and Speed cannot be keyframed.** The sliders, Generation and DOC can.
+- **Standard and Speed can't be keyframed.** The sliders, Generation and DOC can.
 - **A clip with straight (unpremultiplied) alpha** is recorded as the picture over black, as a
   premultiplied one is. At Mix 1 the output is opaque.
 - **A proxy or reduced-resolution render** keeps the bandwidths, the delay, the head switch and
@@ -88,11 +105,11 @@ to it, with these differences:
 - It renders on the CPU: about 4 ms a 1920 × 1080 frame at the defaults and 12 ms at
   Generation 5 on 8 threads of an M4 Max.
 
-It is the same deck, not a lookalike: the per-frame arithmetic is the same C++ as the Resolume
+It's the same deck rather than a lookalike: the per-frame arithmetic is the same C++ as the Resolume
 build's, and the per-pixel passes are a line-for-line copy of its shaders, checked against them
 to within one 8-bit level. In DaVinci Resolve Studio 21.1 on macOS it renders as a Fusion tool,
 and six frames rendered there match the fleet's own OpenFX test host's render of the same frames
-to within one 8-bit level; it has been tried there only as a Fusion tool. **It has never been
+to within one 8-bit level; it's only been tried there as a Fusion tool. **It has never been
 loaded into Vegas, Nuke or Natron.** In the test host, a frame rendered alone, after the frames
 before it or out of order came out byte for byte the same.
 
@@ -100,11 +117,11 @@ before it or out of order came out byte for byte the same.
 
 ## The recorder, not the look
 
-A VHS deck cannot record colour at its broadcast frequency: the tape and heads cannot carry a
+A VHS deck can't record colour at its broadcast frequency: the tape and heads can't carry a
 4.43 MHz (PAL) or 3.58 MHz (NTSC) subcarrier alongside the luma. So the deck **heterodynes the
 chroma down** to about 627 kHz (PAL) or 629 kHz (NTSC) and records it under the luma, which is
 frequency-modulated onto a carrier between about 3.4 and 4.8 MHz. On playback the chroma is
-heterodyned back up. That is the colour-under system, and it and the rotating heads are where
+heterodyned back up. That's the colour-under system, and it and the rotating heads are where
 everything in this plugin comes from:
 
 | the stage | what comes out |
@@ -120,11 +137,11 @@ everything in this plugin comes from:
 | missing oxide | a white streak, or with **DOC** the same stretch of the line 1H before, repeated |
 | a copy of a copy | the whole chain again: colour at 0.35 MHz after two generations, the delay twice, the noise added again |
 
-None of these is drawn as an effect. Each is the recorder doing what it does.
+None of these is drawn on as an effect. Each one is the recorder doing what recorders do.
 
 ### How this differs from Ferric and Old Cathode
 
-Stoatworks has two neighbours in this corner, and Colourunder is built not to repeat them.
+I've got two other plugins in this corner, and Colourunder is built not to repeat them.
 
 - **[Ferric](https://stoatworks-labs.com/software/ferric/)** is the tape transport and the
   noise-reduction round trip: wow, flutter and scrape as one timing error in tape time, and a
@@ -134,7 +151,7 @@ Stoatworks has two neighbours in this corner, and Colourunder is built not to re
 - **[Old Cathode](https://stoatworks-labs.com/software/old-cathode/)** is the broadcast composite
   route to a CRT: a subcarrier, dot crawl, cross-colour, ghosting, interlace twitter, the tube.
   Colourunder never makes a composite. Its chroma is band-limited as a baseband U/V pair, the
-  colour-under band's equivalent, so there is **no dot crawl and no cross-colour**, and there is no
+  colour-under band's equivalent, so there's **no dot crawl and no cross-colour**, and there's no
   CRT. Where the two overlap, Colourunder uses the recorder's own mechanism: Old Cathode's head
   switch is a smoothstep over the bottom few percent of the frame, Colourunder's lands on a stated
   line (6.5 H before V sync) and recovers over the TV's AFC; Old Cathode's tracking band is a
@@ -161,7 +178,7 @@ Then:
   shape, colour bleeding right.
 - **Tracking walks the bar.** Raise Tracking slowly from 0 to 1 and the noise bar climbs out of the
   vertical interval and up the picture, wandering up and down as the error drifts. It moves less
-  than the control suggests: at 0.3 it is still in the bottom tenth of the picture most of the
+  than the control suggests: at 0.3 it's still in the bottom tenth of the picture most of the
   time, and near 1 it reaches the upper half (found while filming the video).
 - **Standard decides what the phase error does.** Raise Chroma Noise to 1 and switch between PAL
   and NTSC on a flat colour: PAL fades a little, NTSC's hue wanders in bands down the picture.
@@ -173,8 +190,8 @@ Then:
 
 **Standard** — PAL or NTSC. It sets the raster (576 or 480 active lines, two fields), the
 colour-under carrier (626.953 or 629.371 kHz, informational: see How it works), where the head
-switch falls, the video frame rate the noise refreshes at (25 or 29.97 a second), and — the one
-you can see — what a playback phase error does. NTSC shows it as a hue shift; PAL inverts its V
+switch falls, the video frame rate the noise refreshes at (25 or 29.97 a second), and (the one
+you can see) what a playback phase error does. NTSC shows it as a hue shift; PAL inverts its V
 axis on alternate lines, so after the 1H average the rotation cancels and only a loss of
 saturation is left.
 
@@ -187,12 +204,12 @@ pitches a field, so there is exactly one crossing a field, where it reads the wr
 FM demodulator loses lock: a band about 19 lines deep of noise, colour gone, lines jittering. At 0
 the crossing rests in the middle of the vertical interval and you see no bar (only a little extra
 noise on the bottom few lines, as on a real, well-tracked VHS). As the error rises the bar enters
-from the bottom and climbs; it is fully on screen by about 0.15. The error is not constant: it
+from the bottom and climbs; it's fully on screen by about 0.15. The error isn't constant: it
 drifts, ± 80 % around the value you set, on a seeded wander through knots 1.7 s apart, so the bar
 walks.
 
 **Head Switch** — the head-to-head time-base step, 0 to 2 µs. The deck switches heads 6.5 lines
-before each field's vertical sync; the new head's timing is not the old one's, so the lines after
+before each field's vertical sync; the new head's timing isn't the old one's, so the lines after
 the switch jump sideways by this much and the TV's AFC pulls them back over about 12 lines. A 2 µs
 switching transient crosses those lines at any setting. The switch lands 4.0 lines before the end
 of a PAL field's active picture and 3.5 on NTSC, so on NTSC it cuts a line in half, 22.38 µs in.
@@ -236,8 +253,8 @@ toward the clip's.
 
 ## Where the numbers come from
 
-Several of the format's figures are weakly sourced, and one important one is disputed. This is the
-honest state of each. ATTRIBUTIONS.md in the repository has the sources in full.
+Several of the format's figures are weakly sourced, and one important one is disputed. Here's
+where each one stands. ATTRIBUTIONS.md in the repository has the sources in full.
 
 | figure | value here | status |
 | --- | --- | --- |
@@ -252,7 +269,7 @@ honest state of each. ATTRIBUTIONS.md in the repository has the sources in full.
 | de-emphasis corner (shapes the FM noise) | 273.76 kHz | **unconfirmed** beyond vhs-decode, which cites IEC 774-1 p. 67 |
 | noise levels, AFC time constant, head-switch step, tracking slope and threshold, dropout rate and length, phase-error size | see the controls above | **chosen**, not sourced |
 
-The IEC 774-1 standard itself was not read: every "IEC" figure above is second-hand.
+The IEC 774-1 standard itself wasn't read, so every "IEC" figure above is second-hand.
 
 ---
 
@@ -273,8 +290,8 @@ Catmull-Rom filter and displaced by that line's time-base error.
   edge and the delay separately measurable. The filters are designed with the display's and the
   intake's own losses included, so the whole chain is half at the stated frequency at any size.
 - **Y′UV is BT.601 with PAL's U and V scalings for both standards** (no YIQ for NTSC).
-- **Everything per line is computed on the CPU in double** — the tracking geometry and drift, the
-  head switch, the phase error's cosine and sine — and handed to the shaders, which do no
+- **Everything per line is computed on the CPU in double** (the tracking geometry and drift, the
+  head switch, the phase error's cosine and sine) and handed to the shaders, which do no
   trigonometry. Time is seconds since the first frame, in double, so the tracking drift is the same
   at any frame rate.
 
@@ -303,7 +320,7 @@ The OpenFX build renders on the CPU instead, measured the same way on the same m
 | 1920 × 1080, 1 thread | 28 | 83 |
 | 3840 × 2160, 8 threads | 9.5 | 17.6 |
 
-That is the effect alone. Inside the fleet's own OpenFX test host, which converts 8-bit frames
+That's the effect alone. Inside the fleet's own OpenFX test host, which converts 8-bit frames
 in and out and lends the effect 8 threads, a 1920 × 1080 frame took 6.1 ms at the defaults and
 14.4 ms at Generation 5, and a 3840 × 2160 one 16 and 24 ms. Nothing was timed inside Resolve or
 any other production host.
@@ -312,11 +329,11 @@ any other production host.
 
 ## If it looks wrong
 
-**There is no tracking bar.** At low Tracking it rests in the vertical interval, below the
+**There's no tracking bar.** At low Tracking it rests in the vertical interval, below the
 picture. Raise Tracking past about 0.1.
 
-**The bar will not stay still.** It should not: the tracking error drifts. There is no control for
-the drift rate in this version.
+**The bar won't stay still.** It isn't meant to: the tracking error drifts. There's no control
+for the drift rate in this version.
 
 **The colour looks fine.** On a picture with little saturated colour, or on soft shapes, the
 ~40-line chroma hides. Try colour with hard edges on black.
@@ -327,15 +344,15 @@ of Chroma Noise: raise it, and look at a flat colour.
 **The picture is soft even at SP.** Luma is band-limited at every speed (3 MHz at SP is about 234
 lines across the picture), and a small composition has fewer host pixels than the deck has lines.
 
-**The bottom few lines are always disturbed.** That is the head switch, 6.5 lines before vertical
+**The bottom few lines are always disturbed.** That's the head switch, 6.5 lines before vertical
 sync, and the noise flank of a tracking bar resting in the vertical interval. Head Switch 0 removes
 the step; the 2 µs switching transient stays.
 
-**SW Colourunder is not in the effects browser.** Check the folder under Installing, and that
+**SW Colourunder isn't in the effects browser.** Check the folder under Installing, and that
 Resolume was restarted.
 
-**The effect does nothing at all.** A shader that will not compile looks exactly like that, and the
-real message is in the log:
+**The effect does nothing at all.** A shader that won't compile looks just like that, and the
+actual message is in the log:
 
 ```
 macOS    ~/Library/Logs/colourunder/colourunder.YYYY-MM-DD.log
@@ -348,11 +365,11 @@ Windows  %LOCALAPPDATA%\colourunder\logs\colourunder.YYYY-MM-DD.log
 
 - **The chroma bandwidth is disputed** (0.5 MHz here, 0.3 MHz in another source), and the LP and
   EP luma figures are weakly sourced or not sourced at all. See Where the numbers come from.
-- **The filters are Gaussian with a pure delay**, not a real deck's; there is no heterodyne.
+- **The filters are Gaussian with a pure delay**, not a real deck's; there's no heterodyne.
 - **No composite between generations**, so a dub adds no cross-colour; no pre-emphasis clipping,
-  so there is no white streaking after sharp edges; no azimuth crosstalk; no audio.
+  so there's no white streaking after sharp edges; no azimuth crosstalk; no audio.
 - **Both fields switch heads at the same place**, and each field is treated as whole lines: a real
-  deck puts one field's switch mid-line, and PAL's and NTSC's half lines are not modelled. The
+  deck puts one field's switch mid-line, and PAL's and NTSC's half lines aren't modelled. The
   head-switch step has the same sign at both switches.
 - **The tracking bar's core is a fixed ~19 lines** once on screen. What grows with the error is how
   much of it has left the vertical interval, not its own width.
@@ -367,12 +384,12 @@ Windows  %LOCALAPPDATA%\colourunder\logs\colourunder.YYYY-MM-DD.log
   Resolve only as a Fusion tool; beyond that, only into the fleet's own OpenFX test host. All of
   it on macOS. The Windows and Linux OpenFX builds are compiled by CI; the Linux one is
   load-tested there, and neither has rendered a frame in any host.
-- **There is a browser demo** at [colourunder-demo.stoatworks-labs.com](https://colourunder-demo.stoatworks-labs.com/).
-  It is a port to a web page, not the plugin: the eight shaders run in WebGL2 unedited, and the
+- **There's a browser demo** at [colourunder-demo.stoatworks-labs.com](https://colourunder-demo.stoatworks-labs.com/).
+  It's a port to a web page rather than the plugin: the eight shaders run in WebGL2 unedited, and the
   per-line CPU half (the tracking geometry and drift, the head switch, the phase error, the
   dropouts) is rewritten in JavaScript and checked against the C++ by a script in the repository.
   It needs float render targets and more fragment uniforms than WebGL2 promises; the page lists
-  what it does not reproduce.
+  what it doesn't reproduce.
 
 ---
 
