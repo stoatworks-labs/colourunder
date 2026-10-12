@@ -10,8 +10,8 @@
 > V sync and not one row above; a 20° playback phase error shifts the hue 20° on every NTSC
 > line and on PAL only takes the saturation down to cos 20°; and DOC, the generations, the
 > tracking bar and a resize all do what the recorder says, with eight negative controls that
-> prove each check can fail. It has **never been loaded into Resolume**; it's loaded by
-> [oxbow](https://github.com/stoatworks-labs/oxbow), which is a real FFGL host but isn't
+> prove each check can fail. It has **never been loaded into Resolume on a Mac**; there it's
+> loaded by [oxbow](https://github.com/stoatworks-labs/oxbow), which is a real FFGL host but isn't
 > Resolume. The OpenFX build runs the same per-frame C++ and a line-for-line C++ mirror of
 > the shaders, and agrees with the GPU to 7e-7 on every pixel compared (never more than one
 > 8-bit level). As a Fusion tool in DaVinci Resolve Studio 21.1 on macOS it renders the
@@ -227,9 +227,9 @@ every check at 320×180, 960×540 and 1280×720 and again on Apple's software re
 320×180. What it shows:
 
 - **Chroma** half amplitude at 0.50000 MHz on PAL (39.0 lines) and NTSC (39.5 lines), at
-  every raster, within 1e-5 MHz; **luma** at 3.0000, 2.7600 and 2.4000 MHz for SP, LP and EP
-  where the raster can carry the band edge (960 and 1280 wide; at 320 wide Nyquist is 3.08
-  MHz, and the check says so and asserts only that luma isn't chroma's).
+  every raster, within 1e-5 MHz; **luma** at 3.0000, 2.7600 and 2.4000 MHz for SP, LP and EP,
+  within 1e-4 MHz, where the raster can carry the band edge (960 and 1280 wide; at 320 wide
+  Nyquist is 3.08 MHz, and the check says so and asserts only that luma isn't chroma's).
 - **Delay.** Chroma lags luma by the stated delay, 5.00000 px when it's a whole number of
   pixels and 2.77192 against 2.77190 px when it isn't, from the edge and from the phase.
 - **Head switch.** On PAL frame line 568 (field line 284) is the first disturbed line and on
