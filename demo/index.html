@@ -8,16 +8,46 @@
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="./vendor/kit.css" />
     <link rel="canonical" href="https://colourunder-demo.stoatworks-labs.com/" />
+    <meta name="project-page" content="https://stoatworks-labs.com/software/colourunder/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Stoatworks Labs" />
+    <meta property="og:title" content="Colourunder — browser demo | Stoatworks Labs" />
+    <meta property="og:description" content="Try the Colourunder FFGL plugin for Resolume in your browser: VHS's colour-under recording, with smeared, late, blotchy chroma, the head switch tearing the bottom lines, a tracking bar, dropouts and copies of copies. The plugin's own shaders ported to WebGL2, with its CPU half ported to JavaScript." />
+    <meta property="og:url" content="https://colourunder-demo.stoatworks-labs.com/" />
+    <meta property="og:image" content="https://stoatworks-labs.com/thumbs/colourunder.png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="720" />
+    <meta property="og:image:alt" content="Colourunder" />
+    <meta name="twitter:card" content="summary_large_image" />
   </head>
   <body>
     <main id="demo">
       <noscript>
+        <h1>Colourunder</h1>
+        <p>
+          An FFGL effect that records your clip the way a VHS deck does. The
+          chroma is heterodyned down underneath the FM luma, so colour gets
+          about 40 lines of resolution to luma's 234 and turns up late, to the
+          right of every edge, with noise that comes out as blotches rather than
+          grain. A playback phase error swings NTSC's hue, but PAL's alternating
+          V axis and the 1H average turn the same error into nothing worse than
+          faded saturation. The heads switch 6.5 lines before vertical sync and
+          tear the bottom of the picture, a tracking bar sits in the vertical
+          interval and walks up the frame as the error drifts, the dropout
+          compensator patches holes with the line before, and a copy of a copy
+          runs the whole chain again.
+        </p>
         <p>
           This demo runs the plugin's shaders in your browser, so it needs
           JavaScript and WebGL2. The plugin itself, its source and its downloads
           are on
           <a href="https://github.com/stoatworks-labs/colourunder">its repository</a>.
         </p>
+        <ul>
+          <li><a href="https://stoatworks-labs.com/software/colourunder/">Project page and downloads</a></li>
+          <li><a href="https://stoatworks-labs.com/software/colourunder/guide/">User guide</a></li>
+          <li><a href="https://github.com/stoatworks-labs/colourunder">Source on GitHub</a></li>
+        </ul>
       </noscript>
     </main>
 
